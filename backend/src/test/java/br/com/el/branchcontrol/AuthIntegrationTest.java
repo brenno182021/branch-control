@@ -32,7 +32,6 @@ class AuthIntegrationTest {
         registry.add("spring.datasource.url", DATABASE.source::getUrl);
         registry.add("spring.datasource.username", DATABASE.source::getUsername);
         registry.add("spring.datasource.password", DATABASE.source::getPassword);
-        registry.add("branch-control.legacy-directory", () -> ROOT.resolve("legacy").toString());
     }
     @Autowired MockMvc mvc;
     @Autowired UsersStore users;
@@ -79,7 +78,7 @@ class AuthIntegrationTest {
         var setup = postAs(first, "/api/auth/setup", setupBody, 200);
         assertNotEquals(oldSession, setup.getRequest().getSession().getId());
         Client admin = session((MockHttpSession) setup.getRequest().getSession());
-        assertFalse(JsonCodec.write(users.findByUsername("admin").orElseThrow()).contains("Teste-local-123"));
+        assertFalse(tools.jackson.databind.json.JsonMapper.builder().build().writeValueAsString(users.findByUsername("admin").orElseThrow()).contains("Teste-local-123"));
         postAs(admin, "/api/auth/setup", setupBody, 409);
         for (String name : List.of("dev", "outro", "teste")) {
             postAs(admin, "/api/admin/users", Map.of("username", name, "name", name, "password", "Teste-local-123", "group", name.equals("teste") ? Groups.USER : Groups.USER), 200);

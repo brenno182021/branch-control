@@ -2,10 +2,6 @@
 setlocal EnableExtensions DisableDelayedExpansion
 chcp 65001 >nul
 cd /d "%~dp0"
-if exist "%~dp0config\local-postgres.properties" (
-    call "%~dp0iniciar-postgres-local.bat"
-    if errorlevel 1 exit /b 1
-)
 if defined BRANCH_CONTROL_JAVA_HOME set "JAVA_HOME=%BRANCH_CONTROL_JAVA_HOME%"
 set "JAVA_CMD=java"
 if defined JAVA_HOME set "JAVA_CMD=%JAVA_HOME%\bin\java.exe"

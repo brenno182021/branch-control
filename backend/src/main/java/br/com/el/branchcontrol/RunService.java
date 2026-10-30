@@ -14,7 +14,7 @@ import java.util.concurrent.locks.ReentrantLock;
 import static br.com.el.branchcontrol.Models.*;
 
 @Service
-@DependsOn({"databaseInstanceLease", "legacyImport"})
+@DependsOn("databaseInstanceLease")
 public class RunService implements AutoCloseable {
     private static final Actor INTERNAL = new Actor("internal", "interno", Groups.ADM);
     private final GitService git;
@@ -25,7 +25,7 @@ public class RunService implements AutoCloseable {
         Thread thread = new Thread(task, "branch-operation"); thread.setDaemon(true); return thread;
     });
     private final ConcurrentMap<String, Execution> runs = new ConcurrentHashMap<>();
-    public record Snapshot(int version, Plan plan, RunView run) {}
+    public record StoredExecution(Plan plan, RunView run) {}
 
     RunService(GitService git, AppProperties properties, ExecutionStore store) { this(git,properties,store,null,null); }
     RunService(GitService git, AppProperties properties, ExecutionStore store, EnvironmentStore environments) { this(git,properties,store,environments,null); }
@@ -39,7 +39,7 @@ public class RunService implements AutoCloseable {
         try {
             Files.createDirectories(logDirectory);
             Files.createDirectories(simulationsDirectory);
-            for (Snapshot saved : store.load()) {
+            for (StoredExecution saved : store.load()) {
                     Execution run = new Execution(saved);
                     runs.put(run.id, run);
                     if (!run.terminal()) run.finish("INTERRUPTED", "Aplicação reiniciada. Confira git status; nenhuma operação foi retomada automaticamente.");
@@ -193,7 +193,7 @@ public class RunService implements AutoCloseable {
             logPath = logDirectory.resolve(id + ".log"); startedAt = Instant.now().toString(); state = "QUEUED"; finishedAt = "";
             for (Commit commit : selection) commits.add(new CommitProgress(commit.hash(), commit.message(), "PENDING", ""));
         }
-        Execution(Snapshot snapshot) {
+        Execution(StoredExecution snapshot) {
             RunView saved = snapshot.run(); id = saved.id(); plan = snapshot.plan(); actor = saved.actor();
             simulation = saved.simulation(); logPath = logDirectory.resolve(id + ".log"); startedAt = saved.startedAt();
             state = saved.state(); finishedAt = saved.finishedAt(); commits.addAll(saved.commits());
@@ -201,7 +201,7 @@ public class RunService implements AutoCloseable {
             lines.addAll(store.tail(id));
         }
         synchronized void persist() {
-            store.save(new Snapshot(1, plan, view(false)));
+            store.save(new StoredExecution(plan, view(false)));
         }
         synchronized void state(String value) { state = value; persist(); }
         synchronized void progress(Commit commit, String value, String newHash) {

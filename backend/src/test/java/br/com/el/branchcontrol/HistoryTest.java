@@ -17,7 +17,7 @@ class HistoryTest {
         var run = new RunView(id, "RUNNING", false, root.toString(), plan.sourceBranch(), plan.targetBranch(), now, "", "untrusted-path.log", List.of(), List.of(), actor, planId);
         var db = new TestDatabase();
         var history = new ExecutionStore(db.source);
-        history.save(new RunService.Snapshot(1, plan, run));
+        history.save(new RunService.StoredExecution(plan, run));
         var properties = new AppProperties(root.toString(), root.resolve("logs").toString(), "America/Sao_Paulo", 30);
         var git = new GitService(new GitRunner(30), properties);
         try (var jobs = new RunService(git, properties, history)) {
@@ -29,7 +29,7 @@ class HistoryTest {
             assertEquals(0, jobs.list(new Actor("tester", "teste", Groups.USER)).size());
         }
         assertEquals("INTERRUPTED", history.load().get(0).run().state());
-        new org.springframework.jdbc.core.JdbcTemplate(db.source).update("UPDATE bc_execution SET snapshot='{}'::jsonb");
+        new org.springframework.jdbc.core.JdbcTemplate(db.source).update("UPDATE bc_execution SET run_started_at='inválido'");
         assertThrows(IllegalStateException.class, () -> new RunService(git, properties, history));
     }
     @Test void csvNeutralizesFormulaPrefixesAndEscapesQuotes() {

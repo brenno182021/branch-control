@@ -6,3 +6,4 @@ psql -X -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname postgres \
 SELECT format('CREATE ROLE %I LOGIN PASSWORD %L NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION', :'app_user', :'app_password') \gexec
 SELECT format('CREATE DATABASE %I OWNER %I ENCODING %L', :'app_name', :'app_user', 'UTF8') \gexec
 SQL
+PGPASSWORD="$APP_DB_PASSWORD" psql -X -v ON_ERROR_STOP=1 --username "$APP_DB_USER" --dbname "$APP_DB_NAME" -f /opt/branch-control/schema.sql

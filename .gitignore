@@ -12,6 +12,7 @@ data/
 .env.*
 !.env.example
 config/database.properties
+config/application.properties
 config/local-postgres.properties
 workspace/
 backend/workspace/

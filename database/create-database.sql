@@ -22,7 +22,7 @@ SELECT format('CREATE DATABASE %I OWNER %I ENCODING %L', :'db_name', :'db_user',
 WHERE NOT EXISTS(SELECT 1 FROM pg_database WHERE datname=:'db_name') \gexec
 SELECT pg_get_userbyid(datdba)=:'db_user' AS owner_matches FROM pg_database WHERE datname=:'db_name' \gset
 \if :owner_matches
-  \echo 'Banco pronto. Configure config/database.properties e execute migrar-banco.bat ou ./migrar-banco.sh.'
+  \echo 'Banco pronto. O preparador executara database/schema.sql como usuario da aplicacao.'
 \else
   \echo 'ERRO: banco existente pertence a outro usuario. Nenhum banco foi sobrescrito. Escolha outro nome.'
   \quit 1

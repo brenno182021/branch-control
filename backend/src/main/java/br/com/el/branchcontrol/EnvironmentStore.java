@@ -31,7 +31,8 @@ public class EnvironmentStore {
     Environment find(String id) {
         try { UUID.fromString(id); } catch (RuntimeException ex) { throw new AppException(404,"Ambiente não encontrado."); }
         return jdbc.query("SELECT * FROM bc_environment WHERE id=CAST(? AS uuid)",(rs,n) -> new Environment(rs.getString("id"),rs.getString("name"),rs.getString("repository_path"),
-            List.of(JsonCodec.read(rs.getString("branch_patterns"),String[].class)),List.of(JsonCodec.read(rs.getString("permissions"),String[].class)),
+            jdbc.queryForList("SELECT pattern FROM bc_environment_branch_pattern WHERE environment_id=CAST(? AS uuid) ORDER BY position",String.class,id),
+            jdbc.queryForList("SELECT permission FROM bc_environment_permission WHERE environment_id=CAST(? AS uuid) ORDER BY permission",String.class,id),
             jdbc.queryForList("SELECT user_id::text FROM bc_environment_member WHERE environment_id=CAST(? AS uuid) ORDER BY user_id",String.class,id),rs.getBoolean("enabled"),rs.getLong("revision")),id)
             .stream().findFirst().orElseThrow(() -> new AppException(404,"Ambiente não encontrado."));
     }
@@ -56,11 +57,15 @@ public class EnvironmentStore {
             if (jdbc.queryForObject("SELECT count(*) FROM bc_environment WHERE lower(name)=lower(?) AND id<>CAST(? AS uuid)",Long.class,name,environmentId)>0) throw AppException.conflict("Já existe um ambiente com esse nome.");
             for(String member:members) if(jdbc.queryForObject("SELECT count(*) FROM bc_user WHERE id=CAST(? AS uuid)",Long.class,member)!=1) throw AppException.bad("Um dos usuários não existe.");
             jdbc.update("""
-                INSERT INTO bc_environment(id,name,repository_path,branch_patterns,permissions,enabled,revision)
-                VALUES(CAST(? AS uuid),?,?,CAST(? AS jsonb),CAST(? AS jsonb),?,1)
-                ON CONFLICT(id) DO UPDATE SET name=excluded.name,repository_path=excluded.repository_path,branch_patterns=excluded.branch_patterns,
-                permissions=excluded.permissions,enabled=excluded.enabled,revision=bc_environment.revision+1,updated_at=current_timestamp
-                """,environmentId,name,repository,JsonCodec.write(patterns),JsonCodec.write(permissions),change.enabled());
+                INSERT INTO bc_environment(id,name,repository_path,enabled,revision)
+                VALUES(CAST(? AS uuid),?,?,?,1)
+                ON CONFLICT(id) DO UPDATE SET name=excluded.name,repository_path=excluded.repository_path,
+                enabled=excluded.enabled,revision=bc_environment.revision+1,updated_at=current_timestamp
+                """,environmentId,name,repository,change.enabled());
+            jdbc.update("DELETE FROM bc_environment_branch_pattern WHERE environment_id=CAST(? AS uuid)",environmentId);
+            for(int i=0;i<patterns.size();i++) jdbc.update("INSERT INTO bc_environment_branch_pattern(environment_id,position,pattern) VALUES(CAST(? AS uuid),?,?)",environmentId,i,patterns.get(i));
+            jdbc.update("DELETE FROM bc_environment_permission WHERE environment_id=CAST(? AS uuid)",environmentId);
+            for(String permission:permissions) jdbc.update("INSERT INTO bc_environment_permission(environment_id,permission) VALUES(CAST(? AS uuid),?)",environmentId,permission);
             jdbc.update("DELETE FROM bc_environment_member WHERE environment_id=CAST(? AS uuid)",environmentId);
             for(String member:members) jdbc.update("INSERT INTO bc_environment_member(environment_id,user_id) VALUES(CAST(? AS uuid),CAST(? AS uuid))",environmentId,member);
             return find(environmentId);

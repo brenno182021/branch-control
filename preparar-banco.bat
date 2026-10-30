@@ -12,5 +12,9 @@ if not defined DB_USER set "DB_USER=branch_control"
 echo Criar banco %DB_NAME% em %PGHOST%:%PGPORT% usando administrador %PGUSER%.
 "%PSQL%" -X -W -d postgres -v ON_ERROR_STOP=1 -v "db_name=%DB_NAME%" -v "db_user=%DB_USER%" -f "%~dp0database\create-database.sql"
 if errorlevel 1 exit /b 1
-if not exist "%~dp0config\database.properties" copy /y "%~dp0config\database.properties.example" "%~dp0config\database.properties" >nul
-echo Edite config\database.properties com a conexao e a senha definida. Depois execute migrar-banco.bat.
+echo Criar tabelas no banco %DB_NAME% como usuario %DB_USER%.
+"%PSQL%" -X -W -U "%DB_USER%" -d "%DB_NAME%" -v ON_ERROR_STOP=1 -f "%~dp0database\schema.sql"
+if errorlevel 1 exit /b 1
+if not exist "%~dp0config\application.properties" copy /y "%~dp0config\application.properties.example" "%~dp0config\application.properties" >nul
+echo Edite config\application.properties com spring.datasource.url, username e password.
+echo Depois execute compilar.bat e iniciar.bat.

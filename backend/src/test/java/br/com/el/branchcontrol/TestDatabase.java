@@ -1,6 +1,7 @@
 package br.com.el.branchcontrol;
 
-import org.flywaydb.core.Flyway;
+import org.springframework.core.io.ClassPathResource;
+import org.springframework.jdbc.datasource.init.ResourceDatabasePopulator;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import java.util.UUID;
@@ -17,6 +18,9 @@ final class TestDatabase {
         var admin = new DriverManagerDataSource(url, user, password);
         new JdbcTemplate(admin).execute("CREATE SCHEMA " + schema);
         source = new DriverManagerDataSource(url + (url.contains("?") ? "&" : "?") + "currentSchema=" + schema, user, password);
-        Flyway.configure().dataSource(source).defaultSchema(schema).locations("classpath:db/migration").load().migrate();
+        initialize();
+    }
+    void initialize() {
+        new ResourceDatabasePopulator(new ClassPathResource("db/schema.sql")).execute(source);
     }
 }

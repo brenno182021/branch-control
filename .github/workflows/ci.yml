@@ -37,4 +37,4 @@ jobs:
       - name: Frontend e JAR
         run: bash compilar.sh
       - name: Testes PostgreSQL, autenticação e Git
-        run: bash testar.sh
+        run: mvn -B -ntp -s config/maven-settings.xml -f backend/pom.xml test

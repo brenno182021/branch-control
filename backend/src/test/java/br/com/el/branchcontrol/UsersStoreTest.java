@@ -24,7 +24,7 @@ class UsersStoreTest {
         var record = store.findByUsername("ADMIN.LOCAL").orElseThrow();
         assertTrue(record.passwordHash().startsWith("$2"));
         assertTrue(encoder.matches(password, record.passwordHash()));
-        String json = JsonCodec.write(store.findByUsername("admin.local").orElseThrow());
+        String json = tools.jackson.databind.json.JsonMapper.builder().build().writeValueAsString(store.findByUsername("admin.local").orElseThrow());
         assertFalse(json.contains(password));
         assertFalse(json.contains("\"password\""));
         assertTrue(json.contains("passwordHash"));
