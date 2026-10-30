@@ -2,6 +2,8 @@
 
 Aplicação web para preparar, simular e aplicar commits entre branches Git, com usuários, ambientes, permissões e histórico em PostgreSQL. Código público: [brenno182021/branch-control](https://github.com/brenno182021/branch-control), licença [MIT](LICENSE).
 
+A comparação remove commits já presentes ou com patch equivalente no destino, inclusive quando o cherry-pick já faz parte do histórico comum das duas branches. Consulte [como a comparação funciona](docs/commit-comparison.md).
+
 ## Requisitos do servidor
 
 Git, Java 17 ou superior, Maven 3.6 ou superior, Node.js 18 ou superior compatível com esbuild e PostgreSQL instalado no servidor ou executado via Docker. PostgreSQL 18 é a versão validada.

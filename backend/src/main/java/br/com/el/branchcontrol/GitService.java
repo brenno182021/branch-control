@@ -90,9 +90,10 @@ public class GitService {
             Commit commit = parseCommit(line);
             if (OffsetDateTime.parse(commit.date()).toInstant().isBefore(exclusiveEnd)) commits.add(commit);
         }
+        List<Commit> pending = new GitPatchEquivalence(runner).pending(repo, target.head(), commits);
         LOG.info("Prévia: repositório={}, origem={}, destino={}, limite={}, commits={}",
-                repo, source.name(), target.name(), cutoff, commits.size());
-        return createPlan(repo, source, target, cutoff, commits);
+                repo, source.name(), target.name(), cutoff, pending.size());
+        return createPlan(repo, source, target, cutoff, pending);
     }
 
     private Plan createPlan(Path repo, Branch source, Branch target, LocalDate cutoff, List<Commit> commits) {
