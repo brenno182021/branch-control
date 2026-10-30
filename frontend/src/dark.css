@@ -1,0 +1,93 @@
+/* Dark palette for the local Branch Control interface. */
+:root {
+  color-scheme: dark;
+  color: #e0ebe3;
+  background: #101612;
+  --green: #267454;
+  --green-dark: #2b825a;
+  --border: #2f3e33;
+  --muted: #a0b4a6;
+  --surface: #18211c;
+}
+body { background: #101612; }
+a { color: #93d5ae; }
+.topbar { background: #141e18; border-color: #2c3b31; }
+.brand-mark { color: #9bd8b4; background: #243c2c; }
+.brand span:not(.brand-mark) { color: #a1b7a7; }
+.local-badge { color: #c2dfcc; border-color: #395642; background: #1c2c22; }
+.local-badge i { background: #8bdbac; }
+.eyebrow { color: #91c6a4; }
+h1, h2 { color: #e5efe7; }
+.step-list { color: #afc4b5; }
+.step-list span:first-child { color: #9bdbb4; }
+.step-list b { color: #6d8977; }
+.panel { background: var(--surface); border-color: var(--border); box-shadow: 0 2px 8px #00000020; }
+.section-number { color: #bfd5c3; border-color: #405544; background: #25352a; }
+.workspace { color: #9aafa1; }
+label { color: #b9cdbf; }
+input:not([type=checkbox]), select {
+  background: #111b15;
+  border-color: #3a5141;
+  color: #deebe2;
+}
+input::placeholder { color: #8da494; }
+input:disabled, select:disabled { background: #19251c; color: #829a89; }
+input[type=checkbox] { accent-color: #83cda1; }
+.primary { color: #f5fff8; }
+.secondary { background: #202e25; color: #d4e7db; border-color: #425e4b; }
+.secondary:not(:disabled):hover { background: #2b4031; border-color: #66856d; }
+.branch-pill { color: #b7dec4; }
+.repository-state > code { color: #adc3b4; }
+.green { background: #213d2b; color: #b1dfbc; }
+.amber { background: #40351e; color: #f3cf86; }
+.link-button { color: #9ed2b1; }
+.hint { color: #a1b5a7; }
+.flow-arrow { color: #7d9d87; }
+.target-notice { background: #303322; color: #dfdfb0; }
+.table-toolbar, .apply-toolbar { border-color: #314235; }
+.selection-summary { color: #a6bda9; }
+.selection-summary strong { color: #d4e7d8; }
+.selection-summary span { color: #718d78; }
+.search-label input { background: #121c16; border-color: #354d3e; color: #dcebe0; }
+.table-wrap { border-color: #35493b; }
+th { background: #202f25; color: #b5cfbc; }
+td { border-color: #304336; color: #d0e1d5; }
+td code { color: #c1e3ca; background: #2b4031; }
+.date-cell { color: #adc4b3; }
+.message-cell { color: #d7e7db; }
+.selected-row { background: #1d2d23; }
+.commit-state { color: #a9bda8; }
+.empty-state { color: #80a68a; }
+.empty-state strong { color: #c2d8c8; }
+.empty-state p { color: #a0b5a5; }
+.order-note { color: #99b09d; }
+.apply-toolbar strong { color: #c1dac7; }
+.apply-toolbar p { color: #a1b7a6; }
+.count-badge { background: #2b3e2d; color: #bdd3b7; }
+.history-item { background: #1b281f; color: #d0e1d0; border-color: #354a37; }
+.history-item.active { background: #243a29; border-color: #608368; box-shadow: inset 3px 0 #96c99a; }
+.history-item small { color: #a8bba0; }
+.run-state { color: #bfd3b4; background: #2b3e2d; }
+.state-completed, .state-applied { color: #bce8ac; background: #29462d; }
+.state-running, .state-queued, .state-will_apply { color: #b9d6fa; background: #293e55; }
+.state-conflict, .state-failed { color: #ffd0b3; background: #4a3127; }
+.history-empty { color: #acbca3; border-color: #3c5136; }
+.aside-note { background: #233021; border-color: #3a4d32; }
+.aside-note strong { color: #c7dabb; }
+.aside-note p { color: #b2c2a6; }
+.follow-label { color: #b7c7b0; }
+.log-output { background: #0b120e; color: #c0dbc8; border: 1px solid #314235; }
+.log-path { color: #a1b397; }
+.log-path code { color: #b6c9ae; }
+footer { color: #99ae9d; }
+.alert.error { background: #3b2722; color: #f4c0af; border-color: #754b3c; }
+.alert.error button { color: #f4c0af; }
+.alert.success { background: #203b29; color: #c0e5bf; border-color: #3b6541; }
+.dirty-details { background: #332c1c; color: #e5c78e; border-color: #625132; }
+.inline-warning { color: #edc18e; }
+.conflict-help { background: #3c2c1e; border-color: #745536; color: #efd1a6; }
+dialog { color: #e2eee3; background: #1d2c21; border-color: #4a664e; box-shadow: 0 20px 80px #00000080; }
+dialog::backdrop { background: #050c08bb; }
+dialog p { color: #b6c9af; }
+.confirm-branch { color: #cfebd5; background: #294430; border-color: #4a7051; }
+.muted { color: #afc2a7 !important; }

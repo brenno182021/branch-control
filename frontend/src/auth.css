@@ -1,0 +1,24 @@
+.auth-shell [hidden] {display:none!important}
+.auth-page {display:grid;place-items:center;min-height:90vh;padding:24px}
+.auth-card {width:min(100%,440px);padding:32px}
+.auth-card form {display:grid;gap:20px}
+.auth-card h1 {font-size:28px;margin:12px 0 24px}
+.auth-account,.auth-nav,.auth-filters {display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.auth-account {color:#c2cede}
+.auth-nav {padding:18px max(24px,calc((100vw - 1440px)/2));border-bottom:1px solid #263b51;background:#0b1625}
+.auth-nav>span {font-size:12px;color:#a8bbcf}
+.auth-section {max-width:1440px;margin:auto;padding:32px 24px}
+.auth-section>.panel {margin:22px 0;padding:24px}
+.auth-section h1 {font-size:30px}
+.auth-filters {align-items:end}
+.auth-filters label {min-width:160px}
+.auth-user-form {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}
+.auth-check {display:flex;align-items:center;gap:10px}
+.auth-check input {width:auto}
+.auth-shell input,.auth-shell select,.auth-page input {color-scheme:dark}
+.auth-shell a {color:#69baff}
+.auth-shell code {overflow-wrap:anywhere}
+.auth-section .table-wrap {overflow:auto}
+.auth-section .log-output {max-height:360px}
+@media(max-width:650px){.auth-user-form{grid-template-columns:1fr}.auth-account{justify-content:flex-end}.auth-nav{padding:12px}.auth-section{padding:24px 12px}.auth-filters label{width:100%}.auth-shell .topbar{gap:15px;height:auto;padding:20px;flex-wrap:wrap}}
+.environment-admin fieldset{border:0;padding:0;margin:0;min-width:0}.environment-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}.environment-fields label{display:flex;flex-direction:column;gap:8px}.environment-admin textarea{width:100%;box-sizing:border-box;background:#101722;color:#e4eaf3;border:1px solid #344253;border-radius:8px;padding:10px;font:inherit;resize:vertical}.environment-checks{display:flex;flex-wrap:wrap;gap:12px 24px;margin:16px 0}.environment-admin .auth-check{display:flex;align-items:center;gap:8px;margin:12px 0}.environment-admin code{overflow-wrap:anywhere}@media(max-width:700px){.environment-fields{grid-template-columns:1fr}}

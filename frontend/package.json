@@ -1,0 +1,14 @@
+{
+  "name": "branch-control-ui",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "build": "node scripts/build.mjs",
+    "test": "node --test test/*.test.js"
+  },
+  "dependencies": { "react": "19.3.1", "react-dom": "19.3.1" },
+  "devDependencies": { "esbuild": "0.28.2" },
+  "engines": { "node": ">=18" }
+}
