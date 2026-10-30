@@ -1,12 +1,13 @@
 import React, {useCallback, useEffect, useState} from 'react';
 import App from './App.jsx';
 import Environments from './Environments.jsx';
+import AccessRequests,{AccessRequestForm} from './AccessRequests.jsx';
 import {request, downloadText, setSessionSecurity} from './api.js';
-import {canOperate, canReport, isAdministrator, passwordError} from './auth.js';
+import {canOperate, canReport, canApproveAccess, initialTab, isAdministrator, passwordError} from './auth.js';
 import {displayState, formatDate} from './helpers.js';
 
 function Login({session, refresh}) {
- const [error,setError]=useState(''), [busy,setBusy]=useState(false);
+ const [error,setError]=useState(''), [busy,setBusy]=useState(false),[requestAccess,setRequestAccess]=useState(false);
  const setup=session.setupRequired;
  async function submit(event) {
   event.preventDefault(); setBusy(true);setError('');
@@ -14,6 +15,7 @@ function Login({session, refresh}) {
   try { if (setup && passwordError(data.password)) throw new Error(passwordError(data.password)); await request(setup?'/auth/setup':'/auth/login',{method:'POST',body:data}); await refresh(); }
   catch(err) {setError(err.message);} finally {setBusy(false);}
  }
+ if(requestAccess&&!setup)return <AccessRequestForm onBack={()=>setRequestAccess(false)}/>;
  return <main className="auth-page"><section className="panel auth-card"><div className="eyebrow">BRANCH CONTROL</div><h1>{setup?'Criar primeiro administrador':'Entrar'}</h1>
  {error && <p className="alert error" role="alert">{error}</p>}
  {setup && !session.setupAllowed ? <p>Abra esta aplicação em localhost no computador do servidor para criar o primeiro administrador.</p> : <form onSubmit={submit}>
@@ -22,6 +24,7 @@ function Login({session, refresh}) {
  <label>Senha<input name="password" type="password" required minLength={setup?8:undefined} aria-describedby={setup?'setup-password-hint':undefined} autoComplete={setup?'new-password':'current-password'}/></label>
  {setup && <p id="setup-password-hint" className="hint">Senha com pelo menos 8 caracteres e no máximo 72 bytes em UTF-8. Acentos ocupam mais de um byte.</p>}
  <button className="primary" disabled={busy}>{busy?'Aguarde…':setup?'Criar administrador':'Entrar'}</button></form>}
+ {!setup&&<div className="access-request-entry"><p>Ainda não tem usuário?</p><button className="secondary" disabled={busy} onClick={()=>{setError('');setRequestAccess(true);}}>Solicitar acesso</button></div>}
  </section></main>;
 }
 
@@ -64,19 +67,22 @@ function Users() {
 }
 
 export default function AuthApp() {
- const [session,setSession]=useState(null), [environments,setEnvironments]=useState([]), [error,setError]=useState(''), [tab,setTab]=useState('operations'), [locked,setLocked]=useState(false), [busy,setBusy]=useState(false);
+ const [session,setSession]=useState(null), [environments,setEnvironments]=useState([]), [error,setError]=useState(''), [tab,setTab]=useState('operations'), [locked,setLocked]=useState(false), [busy,setBusy]=useState(false),[pendingCount,setPendingCount]=useState(0);
  const expire=useCallback(()=>{setSession(previous => previous ? {...previous, authenticated:false, user:null} : previous);setSessionSecurity(null,expire);refresh();},[]);
- async function refresh(){try{const next=await request('/auth/session');setSessionSecurity(next.csrfToken,expire);setSession(next);setError('');const items=next.authenticated?await request('/environments'):[];setEnvironments(items);setTab(canOperate(next.user,items)?'operations':canReport(next.user,items)?'reports':'empty');}catch(err){setError(err.message);}}
+ async function refresh(){try{const next=await request('/auth/session');setSessionSecurity(next.csrfToken,expire);setSession(next);setError('');const items=next.authenticated?await request('/environments'):[];setEnvironments(items);setTab(initialTab(next.user,items));}catch(err){setError(err.message);}}
  useEffect(()=>{setSessionSecurity(null,expire);refresh();return()=>setSessionSecurity(null,null);},[]);
+ const approver=canApproveAccess(session?.user,environments);
+ useEffect(()=>{if(!session?.authenticated||!approver){setPendingCount(0);return;}if(tab==='access')return;let active=true;const poll=()=>request('/access-requests').then(rows=>{if(active)setPendingCount(rows.length);}).catch(()=>{if(active)setPendingCount(0);});poll();const timer=setInterval(poll,30000);return()=>{active=false;clearInterval(timer);};},[session?.authenticated,session?.user?.id,approver,environments,tab]);
  async function logout(){setBusy(true);try{await request('/auth/logout',{method:'POST'});setSession(null);await refresh();}catch(err){setError(err.message);}finally{setBusy(false);}}
  if(!session)return <main className="auth-page"><section className="panel"><p role="status">{error||'Carregando sessão…'}</p>{error&&<button onClick={refresh}>Tentar novamente</button>}</section></main>;
  if(!session.authenticated)return <Login session={session} refresh={refresh}/>;
  const user=session.user;
  return <div className="auth-shell"><header className="topbar"><div className="brand"><div><strong>Branch Control</strong><span>Controle de branches e execuções</span></div></div><div className="auth-account"><span>{user.name || user.username} · {user.group}</span><button className="secondary small" disabled={locked||busy} onClick={logout}>Sair</button></div></header>
- <nav className="auth-nav" aria-label="Navegação principal">{[...(canOperate(user,environments)?[['operations','Operações']]:[]),...(canReport(user,environments)?[['reports','Relatórios']]:[]),...(isAdministrator(user)?[['users','Usuários'],['environments','Ambientes']]:[])].map(([id,label])=><button key={id} className={tab===id?'primary':'secondary'} aria-current={tab===id?'page':undefined} disabled={locked && ['users','environments'].includes(id)} onClick={()=>setTab(id)}>{label}</button>)}{locked&&<span role="status">Operação em andamento; ambiente e sessão bloqueados.</span>}</nav>
+ <nav className="auth-nav" aria-label="Navegação principal">{[...(canOperate(user,environments)?[['operations','Operações']]:[]),...(canReport(user,environments)?[['reports','Relatórios']]:[]),...(canApproveAccess(user,environments)?[['access','Solicitações de acesso'+(pendingCount?' ('+pendingCount+')':'')]]:[]),...(isAdministrator(user)?[['users','Usuários'],['environments','Ambientes']]:[])].map(([id,label])=><button key={id} className={tab===id?'primary':'secondary'} aria-current={tab===id?'page':undefined} disabled={locked && ['users','environments','access'].includes(id)} onClick={()=>setTab(id)}>{label}</button>)}{locked&&<span role="status">Operação em andamento; ambiente e sessão bloqueados.</span>}</nav>
  {error&&<p role="alert" className="alert error">{error}</p>}
  {canOperate(user,environments)&&<div hidden={tab!=='operations'}><App key={user.id} user={user} environments={environments} onLockChange={setLocked} onCreateEnvironment={()=>setTab('environments')}/></div>}
  {tab==='reports'&&<Reports environments={environments.filter(item=>isAdministrator(user)||item.permissions.includes('REPORTS'))}/>}{tab==='users'&&isAdministrator(user)&&<Users/>}
  {tab==='environments'&&isAdministrator(user)&&<Environments onSaved={async()=>setEnvironments(await request('/environments'))}/>}
+ {tab==='access'&&canApproveAccess(user,environments)&&<AccessRequests user={user} environments={environments} onQueueChanged={setPendingCount} onEnvironmentChanged={async()=>setEnvironments(await request('/environments'))}/>}
  {tab==='empty'&&<main className="auth-section panel"><h1>Nenhum acesso disponível</h1><p>Solicite a um administrador acesso a um ambiente.</p></main>}</div>;
 }

@@ -48,11 +48,12 @@ public class SecurityConfiguration {
             .formLogin(config -> config.disable()).httpBasic(config -> config.disable())
             .authorizeHttpRequests(config -> config
                 .requestMatchers("/", "/index.html", "/assets/**", "/favicon.ico", "/error").permitAll()
-                .requestMatchers("/api/auth/session", "/api/auth/login", "/api/auth/setup").permitAll()
+                .requestMatchers("/api/auth/session", "/api/auth/login", "/api/auth/setup", "/api/auth/access-requests").permitAll()
                 .requestMatchers("/api/admin/**").hasAuthority(Groups.ADM)
                 .requestMatchers("/api/config").hasAuthority(Groups.ADM)
                 .requestMatchers("/api/config", "/api/repositories", "/api/repositories/**", "/api/plans", "/api/plans/**")
                     .authenticated()
+                .requestMatchers("/api/access-requests", "/api/access-requests/**").authenticated()
                 .requestMatchers("/api/environments", "/api/environments/**").authenticated()
                 .requestMatchers("/api/runs", "/api/runs/**", "/api/reports", "/api/reports/**", "/api/reports.csv", "/api/auth/**")
                     .authenticated()

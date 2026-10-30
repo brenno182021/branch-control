@@ -76,6 +76,8 @@ A execução usa diretamente o banco configurado, sem perfil de teste. As tabela
 
 Abra [http://127.0.0.1:8087](http://127.0.0.1:8087) no próprio servidor e cadastre o primeiro administrador global. Não há conta inicial predefinida. Depois cadastre usuários e ambientes conforme [as permissões](docs/environments.md).
 
+Pessoas sem conta podem usar **Solicitar acesso** na tela de login. O ADM e os membros de ambientes com **Aprovar novos usuários** recebem as pendências e escolhem o ambiente inicial ao aprovar. A pessoa só consegue entrar depois da aprovação. Veja [solicitações de acesso](docs/access-requests.md).
+
 ## Acesso pela rede
 
 A porta padrão é 8087. Os navegadores da rede devem acessar `http://IP_DO_SERVIDOR:8087`. Configure o firewall e HTTPS conforme sua rede. O filtro da aplicação aceita endereços locais/privados; não exponha o servidor diretamente à Internet.

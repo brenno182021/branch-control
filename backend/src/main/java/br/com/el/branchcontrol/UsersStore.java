@@ -95,7 +95,7 @@ public final class UsersStore {
         if (!normalized.matches("[a-z0-9][a-z0-9._-]{1,39}")) throw AppException.bad("Use de 2 a 40 letras, números, ponto, hífen ou sublinhado no login.");
         return normalized;
     }
-    private static String validName(String value) {
+    static String validName(String value) {
         if (value == null || value.isBlank() || value.strip().length() > 80 || value.chars().anyMatch(Character::isISOControl))
             throw AppException.bad("Informe um nome com até 80 caracteres, sem caracteres de controle.");
         return value.strip();

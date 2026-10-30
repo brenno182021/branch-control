@@ -89,7 +89,7 @@ CREATE TABLE bc_environment_branch_pattern (
 
 CREATE TABLE bc_environment_permission (
     environment_id uuid NOT NULL REFERENCES bc_environment(id),
-    permission varchar(16) NOT NULL CHECK(permission IN ('REPORTS','PREPARE','SIMULATE','APPLY','FETCH','SWITCH')),
+    permission varchar(16) NOT NULL CHECK(permission IN ('REPORTS','PREPARE','SIMULATE','APPLY','FETCH','SWITCH','APPROVE_USERS')),
     PRIMARY KEY(environment_id,permission)
 );
 
@@ -111,5 +111,26 @@ CREATE TABLE bc_execution_selected (
     new_hash text NOT NULL,
     PRIMARY KEY(execution_id,position)
 );
+
+CREATE TABLE bc_access_request (
+    id uuid PRIMARY KEY,
+    username varchar(40) NOT NULL CHECK (username = lower(username)),
+    name varchar(80) NOT NULL,
+    password_hash varchar(60),
+    status varchar(16) NOT NULL CHECK (status IN ('PENDING','APPROVED','REJECTED')),
+    created_at timestamptz NOT NULL,
+    reviewed_at timestamptz,
+    reviewer_id uuid,
+    reviewer_username varchar(40),
+    environment_id uuid,
+    environment_name varchar(80),
+    rejection_reason varchar(500),
+    approved_user_id uuid,
+    CHECK ((status='PENDING' AND password_hash IS NOT NULL AND password_hash ~ '^\$2[aby]\$12\$[./A-Za-z0-9]{53}$' AND reviewed_at IS NULL AND reviewer_id IS NULL AND reviewer_username IS NULL AND environment_id IS NULL AND environment_name IS NULL AND rejection_reason IS NULL AND approved_user_id IS NULL)
+        OR (status='APPROVED' AND password_hash IS NULL AND reviewed_at IS NOT NULL AND reviewer_id IS NOT NULL AND reviewer_username IS NOT NULL AND environment_id IS NOT NULL AND environment_name IS NOT NULL AND approved_user_id IS NOT NULL AND rejection_reason IS NULL)
+        OR (status='REJECTED' AND password_hash IS NULL AND reviewed_at IS NOT NULL AND reviewer_id IS NOT NULL AND reviewer_username IS NOT NULL AND environment_id IS NULL AND environment_name IS NULL AND approved_user_id IS NULL))
+);
+CREATE UNIQUE INDEX bc_access_request_pending_username_unique ON bc_access_request(username) WHERE status='PENDING';
+CREATE INDEX bc_access_request_pending_created_idx ON bc_access_request(created_at,id) WHERE status='PENDING';
 
 COMMIT;

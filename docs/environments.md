@@ -16,8 +16,11 @@ Como administrador, abra Ambientes, selecione o repositório, informe um nome, o
 | `APPLY` | Aplicar uma seleção; exige `SIMULATE` e `PREPARE` |
 | `FETCH` | Atualizar referências do remoto |
 | `SWITCH` | Trocar para uma branch local autorizada |
+| `APPROVE_USERS` | Consultar solicitações pendentes e aprovar novos usuários para este ambiente |
 
 Ter apenas `REPORTS` não concede abertura do estado Git nem operações. Um usuário comum só pode aplicar após sua própria simulação bem-sucedida para o mesmo plano (`planId`) e a mesma seleção. Uma simulação feita por outro usuário ou para outra seleção não libera a aplicação. O administrador global não está sujeito a essa exigência adicional.
+
+A permissão **Aprovar novos usuários** é independente das operações Git. Um membro com essa permissão recebe a aba Solicitações de acesso e pode aprovar uma pessoa somente para ambientes ativos onde tenha essa autorização. O ADM pode escolher qualquer ambiente ativo. A aprovação cria uma conta comum e inclui a pessoa como membro; não concede o papel global ADM. Consulte [o fluxo de solicitações](access-requests.md).
 
 ## Padrões de branch
 

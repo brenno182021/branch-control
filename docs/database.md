@@ -34,6 +34,7 @@ O arquivo real não é versionado. A configuração padrão também está em `ba
 | Tabela | Conteúdo |
 | --- | --- |
 | `bc_user` | Conta, hash bcrypt, papel, habilitação e revisão |
+| `bc_access_request` | Solicitações pendentes e resultado da aprovação ou rejeição |
 | `bc_environment` | Nome, repositório, habilitação e revisão |
 | `bc_environment_branch_pattern` | Padrões de branches por ambiente, em ordem |
 | `bc_environment_permission` | Permissões de cada ambiente |

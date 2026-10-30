@@ -79,7 +79,7 @@ public class EnvironmentStore {
     }
     public RepositoryView open(Actor actor,String id) {
         Environment env=require(actor,id,null);
-        if (!administrator(actor) && env.permissions().stream().noneMatch(p -> !p.equals(Permissions.REPORTS))) throw new AppException(403,"Este ambiente permite apenas relatórios.");
+        if (!administrator(actor) && env.permissions().stream().noneMatch(Permissions.GIT_OPERATIONS::contains)) throw new AppException(403,"Este ambiente permite apenas relatórios.");
         RepositoryView view=git.open(env.repositoryPath());
         if (administrator(actor)) return view;
         return new RepositoryView(view.path(),allows(env,view.currentBranch())?view.currentBranch():"",view.head(),view.dirtyTracked(),view.changedFiles(),view.operation(),view.branches().stream().filter(branch -> allows(env,branch.ref())).toList());
@@ -104,7 +104,7 @@ public class EnvironmentStore {
     public boolean canRead(Actor actor,RunView run) {
         if(canReport(actor,run)) return true;
         if(!actor.userId().equals(run.actor().userId()) || run.environmentId()==null || run.environmentId().isBlank()) return false;
-        return list(actor).stream().anyMatch(env -> env.id().equals(run.environmentId()) && env.enabled() && env.permissions().stream().anyMatch(p -> !p.equals(Permissions.REPORTS)) && env.repositoryPath().equals(run.repositoryPath()) && allows(env,run.sourceBranch()) && allows(env,run.targetBranch()));
+        return list(actor).stream().anyMatch(env -> env.id().equals(run.environmentId()) && env.enabled() && env.permissions().stream().anyMatch(Permissions.GIT_OPERATIONS::contains) && env.repositoryPath().equals(run.repositoryPath()) && allows(env,run.sourceBranch()) && allows(env,run.targetBranch()));
     }
     public String name(String id) { return id==null||id.isBlank()?"Histórico legado":find(id).name(); }
     static void validatePattern(String pattern) {
