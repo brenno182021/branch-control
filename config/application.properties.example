@@ -4,4 +4,3 @@
 spring.datasource.url=jdbc:postgresql://127.0.0.1:5432/branch_control
 spring.datasource.username=branch_control
 spring.datasource.password=INFORME_A_SENHA_DO_USUARIO_DO_BANCO
-branch-control.workspace-root=./workspace

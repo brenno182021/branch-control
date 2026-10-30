@@ -18,31 +18,23 @@ import static br.com.el.branchcontrol.Models.*;
 public class GitService {
     private static final Logger LOG = LoggerFactory.getLogger(GitService.class);
     private final GitRunner runner;
-    private final Path workspace;
     private final ZoneId zone;
     private final Map<Path, ReentrantLock> locks = new ConcurrentHashMap<>();
 
     public GitService(GitRunner runner, AppProperties properties) {
         this.runner = runner;
-        if ("./workspace".equals(properties.workspaceRoot())) {
-            try { Files.createDirectories(Path.of(properties.workspaceRoot())); }
-            catch (IOException ex) { throw new IllegalStateException("Não foi possível criar a pasta workspace.", ex); }
-        }
-        this.workspace = realPath(properties.workspaceRoot());
         this.zone = ZoneId.of(properties.zoneId());
     }
 
-    public String workspaceRoot() { return workspace.toString(); }
     GitRunner runner() { return runner; }
     ReentrantLock lock(Path repository) { return locks.computeIfAbsent(repository, ignored -> new ReentrantLock()); }
 
     public Path resolveRepository(String input) {
         Path path = realPath(input);
-        if (!path.startsWith(workspace)) throw AppException.bad("O repositório deve estar dentro de " + workspace + ".");
+        if (!Files.isDirectory(path)) throw AppException.bad("Informe uma pasta de repositório Git.");
         var result = runner.run(path, "rev-parse", "--show-toplevel");
         if (result.code() != 0) throw AppException.bad("A pasta informada não pertence a um repositório Git.");
         Path root = realPath(result.output().strip());
-        if (!root.startsWith(workspace)) throw AppException.bad("A raiz Git está fora do workspace permitido.");
         if ("true".equals(runner.require(root, "rev-parse", "--is-bare-repository").output().strip())) {
             throw AppException.bad("É necessário um checkout com diretório de trabalho.");
         }

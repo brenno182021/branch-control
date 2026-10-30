@@ -5,8 +5,6 @@ import jakarta.validation.constraints.*;
 import org.springframework.http.*;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
-import java.io.IOException;
-import java.nio.file.*;
 import java.time.LocalDate;
 import java.util.*;
 
@@ -27,12 +25,7 @@ public class BranchController {
     public record ImportRequest(@NotBlank String environmentId,@NotBlank String targetBranch,@NotBlank @Size(max=2_000_000) String content) {}
     public record SelectionRequest(@NotEmpty @Size(max=500) List<String> selectedHashes,boolean simulation) {}
     @GetMapping("/config") public Map<String,Object> config() {
-        return Map.of("workspaceRoot",git.workspaceRoot(),"defaultRepository","","javaVersion",System.getProperty("java.version"));
-    }
-    @GetMapping("/admin/repositories") public List<String> repositories() {
-        try(var paths=Files.list(Path.of(git.workspaceRoot()))) {
-            return paths.filter(Files::isDirectory).filter(path->Files.exists(path.resolve(".git"))).map(Path::toString).sorted().limit(200).toList();
-        }catch(IOException ex){throw new AppException(500,"Não foi possível listar o workspace.");}
+        return Map.of("defaultRepository","","javaVersion",System.getProperty("java.version"));
     }
     @PostMapping("/admin/repositories/open") public Models.RepositoryView adminOpen(@Valid @RequestBody AdminRepositoryRequest request) {return git.open(request.repositoryPath());}
     @PostMapping("/repositories/open") public Models.RepositoryView open(@Valid @RequestBody RepositoryRequest request,Authentication auth) {

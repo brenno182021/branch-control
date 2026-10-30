@@ -2,11 +2,15 @@
 
 O primeiro cadastro, realizado pelo navegador no endereço local do servidor, cria um administrador global (`ADM`). As demais contas são `USER`, salvo promoção explícita por um administrador. Não há grupos ou ambientes RHF predefinidos. `ADM` tem acesso total e administra contas e ambientes.
 
-Um ambiente reúne nome livre, um repositório Git do workspace do servidor, padrões de branches, permissões, membros e estado habilitado/desabilitado. O nome é único sem distinguir maiúsculas de minúsculas. Uma pessoa pode participar de vários ambientes, com permissões diferentes em cada um. As permissões pertencem ao ambiente e valem igualmente para seus membros. Um usuário comum sem ambiente autorizado não pode acessar operações Git.
+Um ambiente reúne nome livre, um repositório Git em qualquer pasta acessível no servidor, padrões de branches, permissões, membros e estado habilitado/desabilitado. O nome é único sem distinguir maiúsculas de minúsculas. Uma pessoa pode participar de vários ambientes, com permissões diferentes em cada um. As permissões pertencem ao ambiente e valem igualmente para seus membros. Um usuário comum sem ambiente autorizado não pode acessar operações Git.
 
 ## Cadastro
 
 Como administrador, abra Ambientes, selecione o repositório, informe um nome, os padrões, as permissões e os usuários membros. O caminho deve apontar para um clone existente no servidor. Não informe caminhos dos computadores dos navegadores. É possível editar ou desativar um ambiente; o histórico é preservado. Alterações incrementam sua revisão e invalidam prévias antigas, que precisam ser geradas novamente.
+
+O campo Repositório Git aceita um caminho completo digitado ou colado, por exemplo `C:/projetos/gpi` ou `D:/repositorios/sistema`. Não há pasta obrigatória nem sugestões de diretórios. O clone pode estar fora da pasta do aplicativo e em outro disco. A conta do servidor precisa ter acesso à pasta. Subpastas de um checkout são normalizadas para sua raiz Git.
+
+Ao acessar de outra máquina pela rede, o mesmo caminho continua apontando para a pasta no servidor do Branch Control. A validação e os comandos Git são executados pelo backend desse servidor; a pasta não precisa existir no computador do navegador.
 
 | Permissão | Acesso |
 | --- | --- |

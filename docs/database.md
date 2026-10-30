@@ -24,7 +24,6 @@ Exemplo de `config/application.properties`, carregado automaticamente pelo Sprin
 spring.datasource.url=jdbc:postgresql://127.0.0.1:5432/branch_control
 spring.datasource.username=branch_control
 spring.datasource.password=SUA_SENHA
-branch-control.workspace-root=./workspace
 ```
 
 O arquivo real não é versionado. A configuração padrão também está em `backend/src/main/resources/application.properties`. Não há perfil de teste para iniciar a aplicação. `spring.sql.init.mode=never` impede inicialização automática de schema.
@@ -49,7 +48,7 @@ Não há arquivos JSON para persistência nem colunas JSON/JSONB. O histórico p
 
 ## Backup e restauração
 
-Pare a aplicação antes do backup. Preserve a configuração privada, certificados, logs e clones do workspace em armazenamento protegido.
+Pare a aplicação antes do backup. Preserve a configuração privada, certificados, logs e os clones cadastrados nos ambientes, nas pastas onde estiverem, em armazenamento protegido.
 
 ```bash
 pg_dump -h 127.0.0.1 -p 5432 -U branch_control -W -d branch_control -Fc -f branch-control.dump
@@ -61,4 +60,4 @@ Para restaurar, mantenha a aplicação parada e crie apenas um banco vazio com o
 pg_restore -h 127.0.0.1 -p 5432 -U branch_control -W -d branch_control --no-owner --exit-on-error branch-control.dump
 ```
 
-Ajuste host, porta e usuário para a instalação. Restaure configurações e workspace, confira permissões e só então inicie. Valide backups periodicamente em banco separado. Não versione dumps ou credenciais.
+Ajuste host, porta e usuário para a instalação. Restaure configurações e clones, confira caminhos e permissões e só então inicie. Valide backups periodicamente em banco separado. Não versione dumps ou credenciais.

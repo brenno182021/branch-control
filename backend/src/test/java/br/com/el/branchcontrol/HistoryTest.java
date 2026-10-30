@@ -18,7 +18,7 @@ class HistoryTest {
         var db = new TestDatabase();
         var history = new ExecutionStore(db.source);
         history.save(new RunService.StoredExecution(plan, run));
-        var properties = new AppProperties(root.toString(), root.resolve("logs").toString(), "America/Sao_Paulo", 30);
+        var properties = new AppProperties(root.resolve("logs").toString(), "America/Sao_Paulo", 30);
         var git = new GitService(new GitRunner(30), properties);
         try (var jobs = new RunService(git, properties, history)) {
             var restored = jobs.get(id, actor);

@@ -37,10 +37,13 @@ O preparador copia o exemplo para `config/application.properties`. Edite esse ar
 spring.datasource.url=jdbc:postgresql://127.0.0.1:5432/branch_control
 spring.datasource.username=branch_control
 spring.datasource.password=SUA_SENHA
-branch-control.workspace-root=./workspace
 ```
 
-Use a porta da instância PostgreSQL e a senha definida na preparação. Clone os repositórios dentro do workspace informado. Use barras `/` em caminhos Windows.
+Use a porta da instância PostgreSQL e a senha definida na preparação. O ADM pode cadastrar repositórios em qualquer pasta acessível no servidor, inclusive em outros discos. Informe o caminho completo na tela Ambientes, por exemplo `C:/projetos/gpi` ou `D:/repositorios/sistema`. Não é necessário mover ou copiar o clone para dentro do Branch Control. Use barras `/` em caminhos Windows.
+
+A aplicação não cria uma pasta para armazenar clones nem sugere diretórios. O caminho é informado diretamente pelo ADM. A conta que executa a aplicação precisa ter acesso ao clone cadastrado.
+
+Mesmo que a interface seja acessada por outro computador da rede, os caminhos e os comandos Git sempre pertencem ao servidor onde o Branch Control está executando. O sistema não usa arquivos ou pastas do computador do navegador.
 
 O Spring Boot carrega `config/application.properties` automaticamente ao iniciar na raiz do projeto. Também é possível ajustar `backend/src/main/resources/application.properties` antes de compilar. O arquivo externo evita recompilar para trocar a conexão e fica fora do Git. As variáveis padrão `SPRING_DATASOURCE_URL`, `SPRING_DATASOURCE_USERNAME` e `SPRING_DATASOURCE_PASSWORD` podem substituir esses valores.
 

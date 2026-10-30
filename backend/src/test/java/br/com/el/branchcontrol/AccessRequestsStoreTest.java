@@ -118,7 +118,7 @@ class AccessRequestsStoreTest {
     @Test void approvalPermissionAloneDoesNotExposeGitRepository() {
         var admin=admin(); users.create("reviewer","Reviewer",password,"USER"); var reviewer=users.findByUsername("reviewer").orElseThrow();
         String env=environment("OnlyApproval",true,reviewer.id(),true);
-        var properties=new AppProperties(".","./data/test-logs","America/Sao_Paulo",30);
+        var properties=new AppProperties("./data/test-logs","America/Sao_Paulo",30);
         var environments=new EnvironmentStore(db.source,new GitService(new GitRunner(30),properties));
         status(403,()->environments.open(reviewer.actor(),env));
         jdbc.update("INSERT INTO bc_environment_branch_pattern VALUES(CAST(? AS uuid),0,'*')",env);

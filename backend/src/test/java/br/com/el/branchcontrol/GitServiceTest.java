@@ -31,7 +31,7 @@ class GitServiceTest {
         repository = Files.createDirectories(workspace.resolve("repo com espaços & teste"));
         runner = new GitRunner(30);
         executionStore = new ExecutionStore(new TestDatabase().source);
-        properties = new AppProperties(workspace.toString(), workspace.resolve("logs").toString(),
+        properties = new AppProperties(workspace.resolve("logs").toString(),
                 "America/Sao_Paulo", 30);
         service = new GitService(runner, properties);
         command("init", "-q", "--initial-branch=destino");
@@ -87,7 +87,7 @@ class GitServiceTest {
         assertEquals(base, command("rev-parse", "HEAD"));
     }
 
-    @Test void refusesOutsideWorkspaceAndShellLikeRefs() throws Exception {
+    @Test void rejectsNonRepositoryAndShellLikeRefs() throws Exception {
         assertThrows(AppException.class, () -> service.open(workspace.getParent().toString()));
         assertThrows(AppException.class, () -> service.prepare(repository.toString(),
                 "--help", "destino", LocalDate.now()));

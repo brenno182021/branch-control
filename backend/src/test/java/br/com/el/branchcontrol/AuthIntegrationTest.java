@@ -27,7 +27,6 @@ class AuthIntegrationTest {
     static final JsonMapper JSON = JsonMapper.builder().build();
     static Path temporary() { try { return Files.createTempDirectory("branch-auth-test-"); } catch (Exception ex) { throw new RuntimeException(ex); } }
     @DynamicPropertySource static void properties(DynamicPropertyRegistry registry) {
-        registry.add("branch-control.workspace-root", ROOT::toString);
         registry.add("branch-control.log-directory", () -> ROOT.resolve("logs").toString());
         registry.add("spring.datasource.url", DATABASE.source::getUrl);
         registry.add("spring.datasource.username", DATABASE.source::getUsername);
@@ -107,7 +106,11 @@ class AuthIntegrationTest {
         String hash = runner.require(repo, "rev-parse", "HEAD").output().strip(); runner.require(repo, "switch", "-q", "destino");
         String devId=users.findByUsername("dev").orElseThrow().id(), otherId=users.findByUsername("outro").orElseThrow().id(), testerId=users.findByUsername("teste").orElseThrow().id();
         var envBody=Map.of("name","Desenvolvimento","repositoryPath",repo.toString(),"branchPatterns",List.of("origem","destino"),"permissions",List.of("PREPARE","SIMULATE","APPLY"),"userIds",List.of(devId,otherId),"enabled",true);
-        String environmentId=json(postAs(admin,"/api/admin/environments",envBody,200)).get("id").asText();
+        var remoteEnvironment=mvc.perform(api(post("/api/admin/environments")).session(admin.session()).header("X-CSRF-TOKEN",admin.csrf())
+                .with(request -> {request.setRemoteAddr("192.168.1.25");return request;})
+                .contentType("application/json").content(JSON.writeValueAsString(envBody))).andExpect(status().isOk()).andReturn();
+        assertEquals(repo.toRealPath().toString(),json(remoteEnvironment).get("repositoryPath").asText());
+        String environmentId=json(remoteEnvironment).get("id").asText();
         var reportBody=Map.of("name","Consulta","repositoryPath",repo.toString(),"branchPatterns",List.of("origem","destino"),"permissions",List.of("REPORTS"),"userIds",List.of(testerId),"enabled",true);
         String reportEnvironment=json(postAs(admin,"/api/admin/environments",reportBody,200)).get("id").asText();
         postAs(tester,"/api/plans",Map.of("environmentId",environmentId,"sourceBranch","origem","targetBranch","destino","cutoff","2099-01-01"),403);
@@ -138,7 +141,7 @@ class AuthIntegrationTest {
         assertEquals(3, json(report).get("total").asInt()); assertEquals(1, json(report).get("applied").asInt());
         var csv = mvc.perform(api(get("/api/reports.csv")).session(tester.session())).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
         assertTrue(csv.contains("'=mensagem CSV")); assertTrue(csv.contains("admin"));
-        try (RunService restored = new RunService(git, new AppProperties(ROOT.toString(), ROOT.resolve("logs").toString(), "America/Sao_Paulo", 30), executions,environments)) {
+        try (RunService restored = new RunService(git, new AppProperties(ROOT.resolve("logs").toString(), "America/Sao_Paulo", 30), executions,environments)) {
             assertEquals(3, restored.list(users.findByUsername("teste").orElseThrow().actor()).size());
             assertEquals("COMPLETED", restored.get(simulationId, adminActor).state());
         }
