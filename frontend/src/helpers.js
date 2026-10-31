@@ -14,7 +14,7 @@ export function isActiveRun(run) {
 
 export function planMatchesContext(plan, repo, source, target, cutoff, environment) {
   return Boolean(plan && repo && (!environment || (plan.environmentId === environment.id && plan.environmentRevision === environment.revision)) && plan.repositoryPath === repo.path &&
-    plan.sourceBranch === source && plan.targetBranch === target && plan.cutoff === cutoff);
+    plan.sourceBranch === source && plan.targetBranch === target && plan.cutoff === cutoff && plan.targetHead === repo.head);
 }
 
 export function localDate(date = new Date()) {

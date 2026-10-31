@@ -64,6 +64,7 @@ class AuthIntegrationTest {
     @Test void authenticatesEnforcesRolesOwnPlansCsrfReportsAndRevocation() throws Exception {
         mvc.perform(get("/index.html")).andExpect(status().isOk());
         mvc.perform(get("/assets/app.js")).andExpect(status().isOk());
+        mvc.perform(api(get("/api/reports.pdf"))).andExpect(status().isUnauthorized());
         mvc.perform(api(get("/api/runs"))).andExpect(status().isUnauthorized());
         mvc.perform(api(get("/api/admin/users"))).andExpect(status().isUnauthorized());
         mvc.perform(api(post("/api/auth/setup")).contentType("application/json").content("{}"))
@@ -139,6 +140,17 @@ class AuthIntegrationTest {
         mvc.perform(api(get("/api/runs/" + simulationId + "/log")).session(other.session())).andExpect(status().isNotFound());
         var report = mvc.perform(api(get("/api/reports")).session(tester.session())).andExpect(status().isOk()).andReturn();
         assertEquals(3, json(report).get("total").asInt()); assertEquals(1, json(report).get("applied").asInt());
+        var pdf = mvc.perform(api(get("/api/reports.pdf")).session(tester.session()))
+                .andExpect(status().isOk()).andExpect(content().contentType("application/pdf"))
+                .andExpect(header().string("Cache-Control", "no-store")).andReturn();
+        try (var document = org.apache.pdfbox.Loader.loadPDF(pdf.getResponse().getContentAsByteArray())) {
+            String text = new org.apache.pdfbox.text.PDFTextStripper().getText(document);
+            assertTrue(text.contains("=mensagem CSV"));
+            assertTrue(text.contains("Total de commits aplicados: 1"));
+        }
+        mvc.perform(api(get("/api/reports.pdf").param("environmentId", environmentId)).session(tester.session())).andExpect(status().isForbidden());
+        mvc.perform(api(get("/api/reports/" + execution.get("id").asText() + "/pdf")).session(dev.session())).andExpect(status().isNotFound());
+        mvc.perform(api(get("/api/reports/" + execution.get("id").asText() + "/pdf")).session(tester.session())).andExpect(status().isOk());
         var csv = mvc.perform(api(get("/api/reports.csv")).session(tester.session())).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
         assertTrue(csv.contains("'=mensagem CSV")); assertTrue(csv.contains("admin"));
         try (RunService restored = new RunService(git, new AppProperties(ROOT.resolve("logs").toString(), "America/Sao_Paulo", 30), executions,environments)) {

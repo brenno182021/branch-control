@@ -1,8 +1,14 @@
 # Branch Control
 
+<img src="frontend/public/branch-control.svg" alt="Ícone do Branch Control" width="64" height="64"/>
+
 Aplicação web para preparar, simular e aplicar commits entre branches Git, com usuários, ambientes, permissões e histórico em PostgreSQL. Código público: [brenno182021/branch-control](https://github.com/brenno182021/branch-control), licença [MIT](LICENSE).
 
 A comparação remove commits já presentes ou com patch equivalente no destino, inclusive quando o cherry-pick já faz parte do histórico comum das duas branches. Consulte [como a comparação funciona](docs/commit-comparison.md).
+
+Após aplicar parte da seleção, os commits restantes continuam na tela. Uma aplicação bem-sucedida oferece a opção de enviar a branch ao remoto, com confirmação explícita. Consulte [aplicação e push](docs/commit-comparison.md#aplicação-parcial-e-push).
+
+Na aba Relatórios, exporte PDFs com os nomes e hashes dos commits realmente aplicados, usando os filtros atuais ou uma execução específica. Consulte [os relatórios em PDF e suas permissões](docs/reports.md).
 
 ## Requisitos do servidor
 

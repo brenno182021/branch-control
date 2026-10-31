@@ -55,7 +55,7 @@ public class SecurityConfiguration {
                     .authenticated()
                 .requestMatchers("/api/access-requests", "/api/access-requests/**").authenticated()
                 .requestMatchers("/api/environments", "/api/environments/**").authenticated()
-                .requestMatchers("/api/runs", "/api/runs/**", "/api/reports", "/api/reports/**", "/api/reports.csv", "/api/auth/**")
+                .requestMatchers("/api/runs", "/api/runs/**", "/api/reports", "/api/reports/**", "/api/reports.csv", "/api/reports.pdf", "/api/auth/**")
                     .authenticated()
                 .anyRequest().denyAll())
             .exceptionHandling(config -> config

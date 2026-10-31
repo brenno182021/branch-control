@@ -17,12 +17,14 @@ Ao acessar de outra máquina pela rede, o mesmo caminho continua apontando para 
 | `REPORTS` | Relatórios e exportação do histórico autorizado |
 | `PREPARE` | Preparar, importar e exportar listas de commits |
 | `SIMULATE` | Simular uma seleção; exige `PREPARE` |
-| `APPLY` | Aplicar uma seleção; exige `SIMULATE` e `PREPARE` |
+| `APPLY` | Aplicar uma seleção e confirmar o push da própria execução; exige `SIMULATE` e `PREPARE` |
 | `FETCH` | Atualizar referências do remoto |
 | `SWITCH` | Trocar para uma branch local autorizada |
 | `APPROVE_USERS` | Consultar solicitações pendentes e aprovar novos usuários para este ambiente |
 
 Ter apenas `REPORTS` não concede abertura do estado Git nem operações. Um usuário comum só pode aplicar após sua própria simulação bem-sucedida para o mesmo plano (`planId`) e a mesma seleção. Uma simulação feita por outro usuário ou para outra seleção não libera a aplicação. O administrador global não está sujeito a essa exigência adicional.
+
+Após aplicar parte da lista, o restante recebe uma nova prévia e exige outra simulação para contas comuns. O push é opcional e tem confirmação própria: não é disparado automaticamente ao aplicar. Somente o autor da execução ou um ADM, com autorização atual de aplicação no ambiente, pode enviar aquela branch de destino para `origin`. A tentativa e o resultado ficam no log da execução. Consulte [aplicação parcial e push](commit-comparison.md#aplicação-parcial-e-push).
 
 A permissão **Aprovar novos usuários** é independente das operações Git. Um membro com essa permissão recebe a aba Solicitações de acesso e pode aprovar uma pessoa somente para ambientes ativos onde tenha essa autorização. O ADM pode escolher qualquer ambiente ativo. A aprovação cria uma conta comum e inclui a pessoa como membro; não concede o papel global ADM. Consulte [o fluxo de solicitações](access-requests.md).
 

@@ -174,6 +174,82 @@ public class RunService implements AutoCloseable {
         require(id, actor);
         return store.log(id);
     }
+    public record PushPreview(String runId, String remote, String targetBranch, String head) {}
+
+    private Execution ownedRealRun(String id, Actor actor) {
+        Execution run = require(id, actor);
+        if (!visible(actor, run.actor)) throw new AppException(404,"Execução não encontrada.");
+        if (run.simulation || !run.terminal()) throw AppException.conflict("Aguarde uma execução real terminar.");
+        return run;
+    }
+    private String appliedHead(Execution run) {
+        String head = run.plan.targetHead();
+        for (CommitProgress commit : run.view(false).commits()) if (commit.state().equals("APPLIED")) head = commit.newHash();
+        return head;
+    }
+    private Plan continued(Execution run, List<Commit> commits) {
+        Plan p = run.plan;
+        return new Plan(UUID.randomUUID().toString(),p.repositoryPath(),p.sourceBranch(),p.targetBranch(),p.sourceHead(),
+                appliedHead(run),p.cutoff(),p.zoneId(),Instant.now().toString(),List.copyOf(commits),p.environmentId(),p.environmentRevision());
+    }
+    private void validateContinuation(Execution run, Actor actor, String permission, boolean clean) {
+        if(environments!=null) environments.validatePlan(actor,run.plan,permission);
+        var view = git.open(run.plan.repositoryPath());
+        if (!view.currentBranch().equals(run.plan.targetBranch()) || !view.head().equals(appliedHead(run)))
+            throw AppException.conflict("A branch ou o HEAD mudou depois da execução. Gere uma nova lista.");
+        if(clean && (view.dirtyTracked() || !view.operation().isEmpty()))
+            throw AppException.conflict("Guarde as alterações e finalize operações Git antes do push.");
+    }
+    public Plan remaining(String id, Actor actor) {
+        Execution run = ownedRealRun(id,actor);
+        Path repo = git.resolveRepository(run.plan.repositoryPath());
+        ReentrantLock lock = git.lock(repo);
+        if(!lock.tryLock()) throw AppException.conflict("Há uma operação em andamento neste repositório.");
+        try {
+            validateContinuation(run,actor,Permissions.PREPARE,false);
+            Set<String> resolved = new HashSet<>();
+            for(CommitProgress commit:run.view(false).commits())
+                if(List.of("APPLIED","PRESENT","EQUIVALENT").contains(commit.state())) resolved.add(commit.hash());
+            return continued(run,run.plan.commits().stream().filter(commit->!resolved.contains(commit.hash())).toList());
+        } finally { lock.unlock(); }
+    }
+    private PushPreview validatePush(Execution run, Actor actor) {
+        var view = run.view(false);
+        if (!view.state().equals("COMPLETED") || view.commits().stream().noneMatch(commit->commit.state().equals("APPLIED")))
+            throw AppException.conflict("O push exige uma aplicação concluída com commits aplicados.");
+        validateContinuation(run,actor,Permissions.APPLY,true);
+        Path repo = git.resolveRepository(run.plan.repositoryPath());
+        // Validate presence without returning credential-bearing remote URLs.
+        if(git.runner().run(repo,"remote","get-url","--push","origin").code()!=0)
+            throw AppException.conflict("Configure o remoto origin antes do push.");
+        return new PushPreview(run.id,"origin",run.plan.targetBranch(),appliedHead(run));
+    }
+    public PushPreview pushPreview(String id, Actor actor) {
+        Execution run=ownedRealRun(id,actor);
+        ReentrantLock lock=git.lock(git.resolveRepository(run.plan.repositoryPath()));
+        if(!lock.tryLock()) throw AppException.conflict("Há uma operação em andamento neste repositório.");
+        try { return validatePush(run,actor); } finally { lock.unlock(); }
+    }
+    public PushPreview push(String id, String expectedHead, Actor actor) {
+        Execution run=ownedRealRun(id,actor);
+        Path repo=git.resolveRepository(run.plan.repositoryPath());
+        ReentrantLock lock=git.lock(repo);
+        if(!lock.tryLock()) throw AppException.conflict("Há uma operação em andamento neste repositório.");
+        try {
+            PushPreview preview=validatePush(run,actor);
+            if(!preview.head().equals(expectedHead)) throw AppException.conflict("O HEAD confirmado não corresponde à execução.");
+            run.log("PUSH SOLICITADO: origin / "+preview.targetBranch()+" ["+preview.head()+"] por "+actor.username());
+            try {
+                git.runner().require(repo,"-c","push.followTags=false","push","--porcelain","--no-follow-tags",
+                        "--recurse-submodules=no","--","origin",preview.head()+":refs/heads/"+preview.targetBranch());
+                run.log("PUSH CONCLUÍDO: origin / "+preview.targetBranch()+" ["+preview.head()+"]");
+                return preview;
+            } catch(RuntimeException ex) {
+                run.log("PUSH FALHOU: origin / "+preview.targetBranch()+". Confira o remoto antes de tentar novamente.");
+                throw new AppException(ex instanceof AppException app?app.status():422,"Push não confirmado. Confira o remoto origin e suas permissões antes de tentar novamente.");
+            }
+        } finally { lock.unlock(); }
+    }
     @Override @PreDestroy public void close() { executor.shutdownNow(); }
 
     private final class Execution {

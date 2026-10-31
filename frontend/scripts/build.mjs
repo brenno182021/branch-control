@@ -21,6 +21,7 @@ export const options = {
 export async function prepare() {
   await mkdir(path.join(root, 'dist/assets'), {recursive: true});
   await copyFile(path.join(root, 'index.html'), path.join(root, 'dist/index.html'));
+  await copyFile(path.join(root, 'public/branch-control.svg'), path.join(root, 'dist/assets/branch-control.svg'));
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

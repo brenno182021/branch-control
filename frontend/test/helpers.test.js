@@ -39,6 +39,12 @@ test('a preview from another repository or branch cannot enable application', ()
   assert.equal(planMatchesContext(preview, {path: 'C:/workspace/A'}, 'refs/heads/draft', 'destino', '2026-10-28'), false);
 });
 
+test('a refreshed HEAD cannot authorize applying an old preview', () => {
+  const preview={repositoryPath:'repo',sourceBranch:'draft',targetBranch:'dest',cutoff:'2026-10-30',targetHead:'before'};
+  assert.equal(planMatchesContext(preview,{path:'repo',head:'after'},'draft','dest','2026-10-30'),false);
+  assert.equal(planMatchesContext({...preview,targetHead:'after'},{path:'repo',head:'after'},'draft','dest','2026-10-30'),true);
+});
+
 test('API failures preserve the server message and all calls identify the local client', async () => {
   let received;
   const fetcher = async (url, options) => {

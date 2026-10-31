@@ -8,6 +8,142 @@ import java.util.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 class CommonHistoryEquivalenceTest {
+    @Test void fingerprintPreflightFailurePreservesStatusWithoutSensitiveMessageOrCause() {
+        var guarded=new GitRunner(30,()->{throw new AppException(503,"Authorization: Bearer REVIEW_DUMMY");});
+        var equivalence=new GitPatchEquivalence(guarded);
+        var candidate=new Models.Commit("a".repeat(40),"2026-10-22T12:00:00Z","pending");
+        var error=assertThrows(AppException.class,()->equivalence.pending(repo,"b".repeat(40),List.of(candidate)));
+        assertEquals(503,error.status());
+        assertEquals("Não foi possível verificar a configuração da comparação Git.",error.getMessage());
+        assertNull(error.getCause());
+    }
+
+    @Test void malformedSensitiveConfigAtFinalFingerprintIsPrivateAndPublishesNoPartialCache() throws Exception {
+        init();
+        String hash=commit("pending","pending\n","2026-10-22T12:00:00Z");
+        String target=command("rev-parse","target");
+        var candidates=List.of(new Models.Commit(hash,"2026-10-22T12:00:00Z","pending"));
+        Path config=repo.resolve(".git/config");
+        byte[] original=Files.readAllBytes(config);
+        var calls=new ArrayList<String>();
+        GitRunner corrupting=new GitRunner(30) {
+            boolean corrupt=true;
+            @Override public Result require(Path path,String... args) {
+                // Explicit file listing exercises Git versions that stream parsed config before a syntax failure.
+                if(Arrays.equals(args,new String[]{"config","--show-origin","--list"}))
+                    return super.require(path,"config","--file",config.toString(),"--show-origin","--list");
+                return super.require(path,args);
+            }
+            @Override public Result requirePipeline(Path path,List<String> producer,List<String> consumer) {
+                calls.add(producer.get(0));
+                Result result=super.requirePipeline(path,producer,consumer);
+                if(corrupt && producer.get(0).equals("show")) {
+                    corrupt=false;
+                    try {
+                        Files.writeString(config,"\n[http]\n\textraHeader = Authorization: Bearer REVIEW_DUMMY\n[broken\n",StandardOpenOption.APPEND);
+                    } catch(java.io.IOException ex) { throw new java.io.UncheckedIOException(ex); }
+                }
+                return result;
+            }
+        };
+        var equivalence=new GitPatchEquivalence(corrupting);
+        AppException error;
+        try { error=assertThrows(AppException.class,()->equivalence.pending(repo,target,candidates)); }
+        finally { Files.write(config,original); }
+        assertEquals(422,error.status());
+        assertEquals("Não foi possível verificar a configuração da comparação Git.",error.getMessage());
+        assertFalse(error.getMessage().contains("REVIEW_DUMMY"));
+        assertFalse(error.getMessage().contains("Authorization"));
+        assertNull(error.getCause());
+        assertEquals(candidates,equivalence.pending(repo,target,candidates));
+        assertEquals(List.of("log","show","log","show"),calls);
+        assertEquals(candidates,equivalence.pending(repo,target,candidates));
+        assertEquals(4,calls.size());
+    }
+
+    @Test void warmComparisonDoesNotRepeatNativeDiffs() throws Exception {
+        init();
+        commit("pending", "pending\n", "2026-10-22T12:00:00Z");
+        var calls = new ArrayList<List<String>>();
+        GitRunner counting = new GitRunner(30) {
+            @Override public Result requirePipeline(Path path, List<String> producer, List<String> consumer) {
+                calls.add(producer); return super.requirePipeline(path, producer, consumer);
+            }
+        };
+        var service = new GitService(counting, new AppProperties(repo.toString(), "UTC", 30));
+        var first = service.prepare(repo.toString(), "source", "target", LocalDate.parse("2026-10-24"));
+        int cold = calls.size();
+        assertEquals(first.commits(), service.prepare(repo.toString(), "source", "target", LocalDate.parse("2026-10-24")).commits());
+        assertEquals(cold, calls.size());
+    }
+
+    @Test void extendsOnlyVerifiedAncestorAndInvalidatesConfigurationAndAttributes() throws Exception {
+        init();
+        String copied=commit("copied", "copied\n", "2026-10-21T12:00:00Z");
+        String pending=commit("pending", "pending\n", "2026-10-22T12:00:00Z");
+        var calls=new ArrayList<List<String>>();
+        GitRunner counting=new GitRunner(30) {
+            @Override public Result requirePipeline(Path path,List<String> producer,List<String> consumer) {
+                calls.add(producer); return super.requirePipeline(path,producer,consumer);
+            }
+        };
+        var service=new GitService(counting,new AppProperties(repo.toString(),"UTC",30));
+        String base=command("rev-parse","target");
+        var before=service.prepare(repo.toString(),"source","target",LocalDate.parse("2026-10-24"));
+        command("switch","-q","target"); command("cherry-pick",copied);
+        String applied=command("rev-parse","HEAD");
+        calls.clear();
+        assertEquals(List.of(pending),service.prepare(repo.toString(),"source","target",LocalDate.parse("2026-10-24")).commits().stream().map(Models.Commit::hash).toList());
+        assertEquals(1,calls.size());
+        assertTrue(calls.get(0).contains(base+".."+applied));
+        command("config","diff.algorithm","histogram"); calls.clear();
+        assertEquals(1,service.prepare(repo.toString(),"source","target",LocalDate.parse("2026-10-24")).commits().size());
+        assertEquals(2,calls.size());
+        Files.writeString(repo.resolve(".gitattributes"),"pending -diff\n"); calls.clear();
+        assertEquals(1,service.prepare(repo.toString(),"source","target",LocalDate.parse("2026-10-24")).commits().size());
+        assertEquals(2,calls.size());
+        command("reset","--hard",base); calls.clear();
+        assertEquals(before.commits(),service.prepare(repo.toString(),"source","target",LocalDate.parse("2026-10-24")).commits());
+        assertTrue(calls.get(0).contains(base));
+        assertFalse(calls.get(0).stream().anyMatch(arg->arg.contains("..")));
+    }
+
+    @Test void failedSourceScanDoesNotPublishPartialTargetOrSourceCache() throws Exception {
+        init(); commit("pending","pending\n","2026-10-22T12:00:00Z");
+        var calls=new ArrayList<String>();
+        GitRunner failing=new GitRunner(30) {
+            boolean fail=true;
+            @Override public Result requirePipeline(Path path,List<String> producer,List<String> consumer) {
+                calls.add(producer.get(0));
+                if(fail && producer.get(0).equals("show")) { fail=false; throw new AppException(422,"fixture failure"); }
+                return super.requirePipeline(path,producer,consumer);
+            }
+        };
+        var service=new GitService(failing,new AppProperties(repo.toString(),"UTC",30));
+        assertThrows(AppException.class,()->service.prepare(repo.toString(),"source","target",LocalDate.parse("2026-10-24")));
+        assertEquals(1,service.prepare(repo.toString(),"source","target",LocalDate.parse("2026-10-24")).commits().size());
+        assertEquals(List.of("log","show","log","show"),calls);
+    }
+
+    @Test void resolvesRelativeAttributesFromRepositoryAndSupportsExplicitlyDisabledGlobalAttributes() throws Exception {
+        init(); commit("pending","pending\n","2026-10-22T12:00:00Z");
+        var calls=new ArrayList<String>();
+        GitRunner counting=new GitRunner(30) {
+            @Override public Result requirePipeline(Path path,List<String> producer,List<String> consumer) {
+                calls.add(producer.get(0)); return super.requirePipeline(path,producer,consumer);
+            }
+        };
+        var service=new GitService(counting,new AppProperties(repo.toString(),"UTC",30));
+        command("config","core.attributesFile","custom.attributes");
+        Files.writeString(repo.resolve("custom.attributes"),"pending diff\n");
+        assertEquals(1,service.prepare(repo.toString(),"source","target",LocalDate.parse("2026-10-24")).commits().size());
+        calls.clear();
+        Files.writeString(repo.resolve("custom.attributes"),"pending -diff\n");
+        assertEquals(1,service.prepare(repo.toString(),"source","target",LocalDate.parse("2026-10-24")).commits().size());
+        assertEquals(List.of("log","show"),calls);
+        command("config","core.attributesFile","");
+        assertEquals(1,service.prepare(repo.toString(),"source","target",LocalDate.parse("2026-10-24")).commits().size());
+    }
     @TempDir Path repo;
     final GitRunner git = new GitRunner(30);
     String command(String... args) { return git.require(repo, args).output().strip(); }
@@ -115,6 +251,9 @@ class CommonHistoryEquivalenceTest {
         command("switch", "-qc", "source");
         String pending = commit("pending", "pending\n", "2026-10-22T12:00:00Z");
         assertEquals(List.of(pending), preview().commits().stream().map(Models.Commit::hash).toList());
+        var service=service();
+        assertEquals(1,service.prepare(repo.toString(),"source","target",LocalDate.parse("2026-10-24")).commits().size());
+        assertEquals(1,service.prepare(repo.toString(),"source","target",LocalDate.parse("2026-10-24")).commits().size());
     }
 
     @Test void streamsDiffLargerThanJavaOutputLimitThroughNativePipeline() throws Exception {

@@ -63,6 +63,16 @@ public class BranchController {
     }
     @GetMapping("/runs") public List<Models.RunView> history(Authentication auth){return runs.list(AuthController.actor(auth));}
     @GetMapping("/runs/{id}") public Models.RunView run(@PathVariable String id,Authentication auth){return runs.get(id,AuthController.actor(auth));}
+    @PostMapping("/runs/{id}/remaining") public Models.Plan remaining(@PathVariable String id,Authentication auth) {
+        var actor=AuthController.actor(auth); return plans.save(runs.remaining(id,actor),actor);
+    }
+    public record PushRequest(@NotBlank @Pattern(regexp="[a-f0-9]{40}|[a-f0-9]{64}") String expectedHead) {}
+    @GetMapping("/runs/{id}/push-preview") public RunService.PushPreview pushPreview(@PathVariable String id,Authentication auth) {
+        return runs.pushPreview(id,AuthController.actor(auth));
+    }
+    @PostMapping("/runs/{id}/push") public RunService.PushPreview push(@PathVariable String id,@Valid @RequestBody PushRequest request,Authentication auth) {
+        return runs.push(id,request.expectedHead(),AuthController.actor(auth));
+    }
     @GetMapping(value="/runs/{id}/log",produces="text/plain;charset=UTF-8")
     public ResponseEntity<String> log(@PathVariable String id,Authentication auth) {
         return ResponseEntity.ok().header(HttpHeaders.CONTENT_DISPOSITION,"attachment; filename=branch-control-"+id+".log").body(runs.log(id,AuthController.actor(auth)));

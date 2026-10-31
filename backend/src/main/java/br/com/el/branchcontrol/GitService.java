@@ -18,11 +18,13 @@ import static br.com.el.branchcontrol.Models.*;
 public class GitService {
     private static final Logger LOG = LoggerFactory.getLogger(GitService.class);
     private final GitRunner runner;
+    private final GitPatchEquivalence equivalence;
     private final ZoneId zone;
     private final Map<Path, ReentrantLock> locks = new ConcurrentHashMap<>();
 
     public GitService(GitRunner runner, AppProperties properties) {
         this.runner = runner;
+        this.equivalence = new GitPatchEquivalence(runner);
         this.zone = ZoneId.of(properties.zoneId());
     }
 
@@ -83,14 +85,14 @@ public class GitService {
         Branch target = branch(repo, targetName, true);
         Instant exclusiveEnd = cutoff.plusDays(1).atStartOfDay(zone).toInstant();
         String output = runner.require(repo, "log", "--reverse", "--topo-order", "--no-merges",
-                "--cherry-pick", "--right-only", "--format=%H%x09%cI%x09%s", target.head() + "..." + source.head()).output();
+                "--right-only", "--format=%H%x09%cI%x09%s", target.head() + "..." + source.head()).output();
         var commits = new ArrayList<Commit>();
         for (String line : output.lines().toList()) {
             if (line.isBlank()) continue;
             Commit commit = parseCommit(line);
             if (OffsetDateTime.parse(commit.date()).toInstant().isBefore(exclusiveEnd)) commits.add(commit);
         }
-        List<Commit> pending = new GitPatchEquivalence(runner).pending(repo, target.head(), commits);
+        List<Commit> pending = equivalence.pending(repo, target.head(), commits);
         LOG.info("Prévia: repositório={}, origem={}, destino={}, limite={}, commits={}",
                 repo, source.name(), target.name(), cutoff, pending.size());
         return createPlan(repo, source, target, cutoff, pending);

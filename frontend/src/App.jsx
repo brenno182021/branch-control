@@ -2,6 +2,7 @@ import React, {useEffect, useMemo, useRef, useState} from 'react';
 import {hasExactSimulation, hasPermission, isAdministrator} from './auth.js';
 import {request, downloadText} from './api.js';
 import {displayState, formatDate, isActiveRun, localDate, selectedInPlanOrder, toggleVisible, planMatchesContext} from './helpers.js';
+import {completeRun, keepPendingSelection, canOfferPush, sendConfirmedPush} from './run-completion.js';
 
 function BranchIcon() {
   return <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -21,14 +22,16 @@ function Confirmation({value, onCancel, onConfirm, busy}) {
   return <dialog ref={dialog} onCancel={event => {event.preventDefault(); if (!busy) onCancel();}}>
     {value && <>
       <div className="eyebrow">CONFIRMAR OPERAÇÃO</div>
-      <h2>{value.kind === 'switch' ? 'Trocar a branch ativa?' : 'Aplicar os commits selecionados?'}</h2>
-      <p>{value.kind === 'switch' ? 'O checkout será alterado para a branch abaixo.' :
+      <h2>{value.kind === 'push' ? 'Enviar os commits ao remoto?' : value.kind === 'switch' ? 'Trocar a branch ativa?' : 'Aplicar os commits selecionados?'}</h2>
+      <p>{value.kind === 'push' ? 'Os cherry-picks foram aplicados localmente. Deseja fazer push para a branch abaixo?' : value.kind === 'switch' ? 'O checkout será alterado para a branch abaixo.' :
         `Serão aplicados ${value.count} commits na branch abaixo, na ordem apresentada.`}</p>
-      <div className="confirm-branch"><BranchIcon/><strong>{value.target}</strong></div>
+      <div className="confirm-branch"><BranchIcon/><strong>{value.kind === 'push' ? value.remote + '/' + value.targetBranch : value.target}</strong></div>
+      {value.kind === 'push' && <><p>HEAD: <code title={value.head}>{value.head.slice(0,12)}</code></p><p className="muted">O envio inclui os commits locais até esse HEAD. Se o remoto tiver alterações incompatíveis, o Git recusará o envio.</p></>}
       {value.repositoryPath && <p className="muted">{value.repositoryPath}</p>}
-      {value.kind !== 'switch' && <p className="muted">Se houver conflito, a sequência para para você resolver no terminal ou na IDE.</p>}
-      <div className="actions end"><button className="secondary" onClick={onCancel} disabled={busy}>Cancelar</button>
-        <button className="primary" onClick={onConfirm} disabled={busy}>{busy ? 'Aguarde…' : value.kind === 'switch' ? 'Trocar branch' : 'Aplicar commits'}</button></div>
+      {value.error && <p className="inline-warning" role="alert">{value.error}</p>}
+      {value.kind === 'apply' && <p className="muted">Se houver conflito, a sequência para para você resolver no terminal ou na IDE.</p>}
+      <div className="actions end"><button className="secondary" onClick={onCancel} disabled={busy} autoFocus>{value.kind === 'push' ? 'Agora não' : 'Cancelar'}</button>
+        <button className="primary" onClick={onConfirm} disabled={busy}>{busy ? 'Aguarde…' : value.kind === 'push' ? 'Fazer push' : value.kind === 'switch' ? 'Trocar branch' : 'Aplicar commits'}</button></div>
     </>}
   </dialog>;
 }
@@ -55,6 +58,7 @@ export default function App({user, environments, onLockChange, onCreateEnvironme
   const [followLog, setFollowLog] = useState(true);
   const fileInput = useRef(null);
   const logPanel = useRef(null);
+  const pendingCompletion = useRef(null);
   const running = isActiveRun(run);
   const locked = busy || running || settling;
   useEffect(() => { onLockChange?.(locked); }, [locked, onLockChange]);
@@ -89,7 +93,7 @@ export default function App({user, environments, onLockChange, onCreateEnvironme
   }, [environment?.id, environment?.revision]);
 
   useEffect(() => {
-    if (!run || !isActiveRun(run)) return;
+    if (!run || (!isActiveRun(run) && pendingCompletion.current !== run.id)) return;
     let stopped = false;
     let timer;
     const id = run.id;
@@ -103,16 +107,25 @@ export default function App({user, environments, onLockChange, onCreateEnvironme
         if (isActiveRun(current)) timer = setTimeout(poll, 900);
         else {
           terminal = true;
-          setHistory((await request('/runs')).filter(item => item.environmentId === environment.id));
-          const view = await request('/repositories/open', {method: 'POST', body: {environmentId: environment.id}});
+          const result = await completeRun(current, {environmentId:environment.id,
+            offerPush:canOfferPush(current,user,allowed('APPLY'))});
           if (!stopped) {
-            setRepo(view);
-            setPath(view.path);
+            pendingCompletion.current = null;
+            if (result.history) setHistory(result.history);
+            if (result.repository) {setRepo(result.repository);setPath(result.repository.path);}
             if (!current.simulation) {
-              setTarget(view.currentBranch);
-              invalidate();
+              if (result.remaining) {
+                setPlan(result.remaining);
+                setSelected(old => keepPendingSelection(old,result.remaining));
+              } else {
+                // A previous snapshot cannot authorize further writes after its HEAD changed.
+                setPlan(null);setSelected(new Set());
+              }
             }
-            setNotice(current.state === 'COMPLETED' ? (current.simulation ? 'Simulação concluída. Confira o resultado e o log.' : 'Execução concluída. Gere uma nova prévia para conferir o que falta.') : '');
+            if (result.warning) setError(result.warning);
+            if (result.pushOffer) setConfirmation({kind:'push',...result.pushOffer});
+            setNotice(current.simulation ? (current.state === 'COMPLETED' ? 'Simulação concluída. Confira o resultado e o log.' : '') :
+              result.remaining ? `Execução finalizada. ${result.remaining.commits.length} commits continuam pendentes na lista.` : 'Execução finalizada. Não foi possível renovar a lista; confira o estado do repositório.');
           }
         }
       } catch (err) { if (!stopped) { setError(err.message); if (!terminal) timer = setTimeout(poll, 2000); } }
@@ -189,6 +202,7 @@ export default function App({user, environments, onLockChange, onCreateEnvironme
     if (!matchesContext || inputChanged) { setError('A prévia não corresponde ao repositório ou às branches atuais. Gere a lista novamente.'); return; }
     await act(async () => {
       const created = await request('/plans/' + plan.id + '/runs', {method: 'POST', body: {selectedHashes: hashes, simulation}});
+      pendingCompletion.current = created.id;
       setRun(created); setFollowLog(true); setConfirmation(null);
       setHistory((await request('/runs')).filter(item => item.environmentId === environment.id));
     });
@@ -196,6 +210,17 @@ export default function App({user, environments, onLockChange, onCreateEnvironme
 
   async function confirm() {
     if (confirmation.kind === 'apply') { await start(false); return; }
+    if (confirmation.kind === 'push') {
+      const offer = confirmation;
+      await act(async () => {
+        try {await sendConfirmedPush(offer);}
+        catch (err) {setConfirmation({...offer,error:err.message});throw err;}
+        setConfirmation(null);
+        setNotice(`Push concluído para ${offer.remote}/${offer.targetBranch}.`);
+        setRun(await request('/runs/' + offer.runId));
+      });
+      return;
+    }
     await act(async () => {
       const view = await request('/repositories/switch', {method: 'POST', body: {environmentId: environment.id, targetBranch: target}});
       acceptRepository(view, true); invalidate(); setConfirmation(null);
@@ -285,7 +310,9 @@ export default function App({user, environments, onLockChange, onCreateEnvironme
 
       <section className="panel log-section" aria-labelledby="log-title"><div className="section-heading"><div><span className="section-number">LOG</span><h2 id="log-title">Acompanhar execução</h2>
           {run && <span className={'run-state state-' + run.state.toLowerCase()}>{running && <i className="spinner"/>}{displayState(run.state)}</span>}</div>
-        <div className="actions"><label className="follow-label"><input type="checkbox" checked={followLog} onChange={event => setFollowLog(event.target.checked)}/>Seguir log</label>
+        <div className="actions">{canOfferPush(run,user,allowed('APPLY')) && run.environmentId === environmentId && <button className="secondary small" disabled={locked} onClick={() => act(async () => {
+          const offer=await request('/runs/'+run.id+'/push-preview');setConfirmation({kind:'push',...offer});
+        })}>Enviar ao remoto (push)</button>}<label className="follow-label"><input type="checkbox" checked={followLog} onChange={event => setFollowLog(event.target.checked)}/>Seguir log</label>
           <button className="secondary small" disabled={!run || busy} onClick={() => act(async () => downloadText('branch-control-' + run.id + '.log', await request('/runs/' + run.id + '/log')))}>Baixar log</button></div></div>
         {run?.state === 'CONFLICT' && <div className="conflict-help"><strong>A sequência foi interrompida por conflito.</strong>
           <p>Resolva os arquivos na IDE, execute <code>git add caminho/do/arquivo</code> e <code>git cherry-pick --continue</code>. Depois gere outra prévia para os commits restantes.</p>

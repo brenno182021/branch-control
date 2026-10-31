@@ -2,7 +2,7 @@ import React, {useCallback, useEffect, useState} from 'react';
 import App from './App.jsx';
 import Environments from './Environments.jsx';
 import AccessRequests,{AccessRequestForm} from './AccessRequests.jsx';
-import {request, downloadText, setSessionSecurity} from './api.js';
+import {request, downloadText, downloadFile, setSessionSecurity} from './api.js';
 import {canOperate, canReport, canApproveAccess, initialTab, isAdministrator, passwordError} from './auth.js';
 import {displayState, formatDate} from './helpers.js';
 
@@ -16,7 +16,7 @@ function Login({session, refresh}) {
   catch(err) {setError(err.message);} finally {setBusy(false);}
  }
  if(requestAccess&&!setup)return <AccessRequestForm onBack={()=>setRequestAccess(false)}/>;
- return <main className="auth-page"><section className="panel auth-card"><div className="eyebrow">BRANCH CONTROL</div><h1>{setup?'Criar primeiro administrador':'Entrar'}</h1>
+ return <main className="auth-page"><section className="panel auth-card"><img className="auth-logo" src="/assets/branch-control.svg" width="64" height="64" alt=""/><div className="eyebrow">BRANCH CONTROL</div><h1>{setup?'Criar primeiro administrador':'Entrar'}</h1>
  {error && <p className="alert error" role="alert">{error}</p>}
  {setup && !session.setupAllowed ? <p>Abra esta aplicação em localhost no computador do servidor para criar o primeiro administrador.</p> : <form onSubmit={submit}>
  <label>Usuário<input name="username" required autoComplete="username" maxLength={40}/></label>
@@ -34,15 +34,19 @@ function Reports({environments}) {
  async function load(event) {event?.preventDefault();setBusy(true);setError('');try {setReport(await request('/reports?'+query));} catch(err){setError(err.message);}finally{setBusy(false);}}
  useEffect(()=>{load();},[]);
  async function show(run) {setBusy(true);setError('');setSelected(null);setLog('');try {const [view,text]=await Promise.all([request('/runs/'+run.id),request('/runs/'+run.id+'/log')]);setSelected(view);setLog(text);}catch(err){setError(err.message);}finally{setBusy(false);}}
+ async function pdf(run) {setBusy(true);setError('');try {
+  const path=run?'/reports/'+run.id+'/pdf':'/reports.pdf?'+query;
+  downloadFile(run?'branch-control-execucao-'+run.id+'.pdf':'branch-control-relatorio.pdf',await request(path,{responseType:'blob'}));
+ }catch(err){setError(err.message);}finally{setBusy(false);}}
  return <main className="auth-section"><h1>Relatórios e histórico</h1><p>Execuções permitidas pelos seus ambientes.</p>{error&&<p role="alert" className="alert error">{error}</p>}
  <form className="panel auth-filters" onSubmit={load}>
  <label>Ambiente<select value={filters.environmentId} onChange={e=>{setFilters({...filters,environmentId:e.target.value});setReport(null);setSelected(null);setLog('');}}><option value="">Todos os autorizados</option>{environments.filter(item=>item.enabled).map(item=><option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
  <label>De<input type="date" value={filters.from} onChange={e=>setFilters({...filters,from:e.target.value})}/></label>
  <label>Até<input type="date" min={filters.from} value={filters.to} onChange={e=>setFilters({...filters,to:e.target.value})}/></label>
  <label>Resultado<select value={filters.state} onChange={e=>setFilters({...filters,state:e.target.value})}><option value="">Todos</option>{['QUEUED','RUNNING','COMPLETED','FAILED','CONFLICT','INTERRUPTED'].map(s=><option key={s} value={s}>{displayState(s)}</option>)}</select></label>
- <button className="primary" disabled={busy}>Filtrar</button><button type="button" className="secondary" disabled={busy} onClick={async()=>{setBusy(true);setError('');try{downloadText('branch-control-relatorios.csv',await request('/reports.csv?'+query));}catch(err){setError(err.message);}finally{setBusy(false);}}}>Exportar CSV</button></form>
+ <button className="primary" disabled={busy}>Filtrar</button><button type="button" className="secondary" disabled={busy} onClick={async()=>{setBusy(true);setError('');try{downloadText('branch-control-relatorios.csv',await request('/reports.csv?'+query));}catch(err){setError(err.message);}finally{setBusy(false);}}}>Exportar CSV</button><button type="button" className="secondary" disabled={busy} onClick={()=>pdf()}>Exportar PDF</button></form>
  {report&&<><p role="status">{report.total} execuções · {report.applied} commits aplicados · {report.simulations} simulações · {report.failed} falhas</p><div className="panel table-wrap"><table><thead><tr><th>Data</th><th>Usuário / grupo</th><th>Ambiente / operação / destino</th><th>Resultado</th><th>Detalhes</th></tr></thead><tbody>{report.runs.map(run=><tr key={run.id}><td>{formatDate(run.startedAt,true)}</td><td>{run.actor?.username || '—'} / {run.actor?.group || '—'}</td><td>{run.environmentName || '—'} · {run.simulation?'Simulação':'Aplicação'} · {run.targetBranch}</td><td>{displayState(run.state)}</td><td><button className="secondary small" disabled={busy} onClick={()=>show(run)}>Ver hashes e log</button></td></tr>)}</tbody></table>{!report.runs.length&&<p>Nenhuma execução para os filtros.</p>}</div></>}
- {selected&&<section className="panel"><h2>Execução {selected.id}</h2><p>{selected.environmentName} · {selected.actor?.username} · {selected.actor?.group} · {displayState(selected.state)}</p><div className="table-wrap"><table><thead><tr><th>Original</th><th>Novo hash</th><th>Resultado</th></tr></thead><tbody>{selected.commits.map(commit=><tr key={commit.hash}><td><code>{commit.hash}</code></td><td><code>{commit.newHash || '—'}</code></td><td>{displayState(commit.state)}</td></tr>)}</tbody></table></div><h3>Log</h3><pre className="log-output" role="log">{log}</pre><button className="secondary" onClick={()=>downloadText('branch-control-'+selected.id+'.log',log)}>Baixar log</button></section>}
+ {selected&&<section className="panel"><h2>Execução {selected.id}</h2><p>{selected.environmentName} · {selected.actor?.username} · {selected.actor?.group} · {displayState(selected.state)}</p><div className="table-wrap"><table><thead><tr><th>Commit</th><th>Original</th><th>Novo hash</th><th>Resultado</th></tr></thead><tbody>{selected.commits.map(commit=><tr key={commit.hash}><td>{commit.message}</td><td><code>{commit.hash}</code></td><td><code>{commit.newHash || '—'}</code></td><td>{displayState(commit.state)}</td></tr>)}</tbody></table></div><h3>Log</h3><pre className="log-output" role="log">{log}</pre><div className="actions"><button className="secondary" disabled={busy} onClick={()=>downloadText('branch-control-'+selected.id+'.log',log)}>Baixar log</button><button className="secondary" disabled={busy} onClick={()=>pdf(selected)}>Baixar PDF desta execução</button></div></section>}
  </main>;
 }
 
@@ -77,7 +81,7 @@ export default function AuthApp() {
  if(!session)return <main className="auth-page"><section className="panel"><p role="status">{error||'Carregando sessão…'}</p>{error&&<button onClick={refresh}>Tentar novamente</button>}</section></main>;
  if(!session.authenticated)return <Login session={session} refresh={refresh}/>;
  const user=session.user;
- return <div className="auth-shell"><header className="topbar"><div className="brand"><div><strong>Branch Control</strong><span>Controle de branches e execuções</span></div></div><div className="auth-account"><span>{user.name || user.username} · {user.group}</span><button className="secondary small" disabled={locked||busy} onClick={logout}>Sair</button></div></header>
+ return <div className="auth-shell"><header className="topbar"><div className="brand"><img className="brand-icon" src="/assets/branch-control.svg" width="42" height="42" alt=""/><div><strong>Branch Control</strong><span>Controle de branches e execuções</span></div></div><div className="auth-account"><span>{user.name || user.username} · {user.group}</span><button className="secondary small" disabled={locked||busy} onClick={logout}>Sair</button></div></header>
  <nav className="auth-nav" aria-label="Navegação principal">{[...(canOperate(user,environments)?[['operations','Operações']]:[]),...(canReport(user,environments)?[['reports','Relatórios']]:[]),...(canApproveAccess(user,environments)?[['access','Solicitações de acesso'+(pendingCount?' ('+pendingCount+')':'')]]:[]),...(isAdministrator(user)?[['users','Usuários'],['environments','Ambientes']]:[])].map(([id,label])=><button key={id} className={tab===id?'primary':'secondary'} aria-current={tab===id?'page':undefined} disabled={locked && ['users','environments','access'].includes(id)} onClick={()=>setTab(id)}>{label}</button>)}{locked&&<span role="status">Operação em andamento; ambiente e sessão bloqueados.</span>}</nav>
  {error&&<p role="alert" className="alert error">{error}</p>}
  {canOperate(user,environments)&&<div hidden={tab!=='operations'}><App key={user.id} user={user} environments={environments} onLockChange={setLocked} onCreateEnvironment={()=>setTab('environments')}/></div>}

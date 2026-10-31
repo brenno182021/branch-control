@@ -43,6 +43,24 @@ public class ReportController {
         }
         return ResponseEntity.ok().header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=branch-control-relatorio.csv").body(csv.toString());
     }
+    @GetMapping(value = "/reports.pdf", produces = "application/pdf")
+    public ResponseEntity<byte[]> pdf(Authentication auth, @RequestParam(required=false) LocalDate from,
+            @RequestParam(required=false) LocalDate to, @RequestParam(required=false) String state,
+            @RequestParam(required=false) String environmentId) throws java.io.IOException {
+        var result = filter(auth, from, to, state, environmentId);
+        String environmentName = environmentId == null || environmentId.isBlank() ? "todos" : environments.require(AuthController.actor(auth), environmentId, Permissions.REPORTS).name();
+        return pdfResponse(new AppliedCommitsPdf(zone).render(result, "De: " + Objects.toString(from, "todos") + " | Até: " + Objects.toString(to, "todos") + " | Resultado: " + Objects.toString(state, "todos") + " | Ambiente: " + environmentName), "branch-control-relatorio.pdf");
+    }
+    @GetMapping(value = "/reports/{id}/pdf", produces = "application/pdf")
+    public ResponseEntity<byte[]> pdfRun(Authentication auth, @PathVariable String id) throws java.io.IOException {
+        var run = runs.reports(AuthController.actor(auth)).stream().filter(item -> item.id().equals(id)).findFirst()
+                .orElseThrow(() -> new AppException(404, "Execução não encontrada."));
+        return pdfResponse(new AppliedCommitsPdf(zone).render(List.of(run), "Execução: " + id), "branch-control-execucao-" + id.replaceAll("[^a-zA-Z0-9_-]", "_") + ".pdf");
+    }
+    private static ResponseEntity<byte[]> pdfResponse(byte[] bytes, String filename) {
+        return ResponseEntity.ok().header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=" + filename)
+                .cacheControl(CacheControl.noStore()).contentType(MediaType.APPLICATION_PDF).body(bytes);
+    }
     static String cell(String value) {
         String clean = value.replace('\r', ' ').replace('\n', ' ').replace('\t', ' ');
         if (clean.stripLeading().matches("^[=+@-].*")) clean = "'" + clean;

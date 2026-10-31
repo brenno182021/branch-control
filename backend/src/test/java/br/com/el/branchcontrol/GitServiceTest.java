@@ -21,6 +21,7 @@ class GitServiceTest {
     GitService service;
     AppProperties properties;
     ExecutionStore executionStore;
+    TestDatabase database;
     String base;
     String first;
     String second;
@@ -30,7 +31,8 @@ class GitServiceTest {
     @BeforeEach void prepare() throws Exception {
         repository = Files.createDirectories(workspace.resolve("repo com espaços & teste"));
         runner = new GitRunner(30);
-        executionStore = new ExecutionStore(new TestDatabase().source);
+        database = new TestDatabase();
+        executionStore = new ExecutionStore(database.source);
         properties = new AppProperties(workspace.resolve("logs").toString(),
                 "America/Sao_Paulo", 30);
         service = new GitService(runner, properties);
@@ -133,6 +135,8 @@ class GitServiceTest {
             assertThrows(AppException.class, () -> jobs.start(preview, List.of(first, second), false, dev));
             var simulation = await(jobs, jobs.start(preview, List.of(first, second), true, dev).id());
             assertEquals("COMPLETED", simulation.state());
+            assertThrows(AppException.class,()->jobs.remaining(simulation.id(),dev));
+            assertThrows(AppException.class,()->jobs.pushPreview(simulation.id(),dev));
             assertEquals(base, command("rev-parse", "HEAD"));
             assertThrows(AppException.class, () -> jobs.start(preview, List.of(second), false, dev));
             assertThrows(AppException.class, () -> jobs.start(preview, List.of(second, first), false, dev));
@@ -184,6 +188,8 @@ class GitServiceTest {
             assertEquals("CONFLICT", failed.state(), String.join("\n", failed.lines()));
             assertEquals(before, command("rev-parse", "HEAD"));
             assertEquals(first, command("rev-parse", "CHERRY_PICK_HEAD"));
+            assertEquals(preview.commits(),jobs.remaining(failed.id(),new Models.Actor("internal","interno",Groups.ADM)).commits());
+            assertThrows(AppException.class,()->jobs.pushPreview(failed.id(),new Models.Actor("internal","interno",Groups.ADM)));
             assertFalse(Files.exists(repository.resolve("rateio.txt")));
             assertThrows(AppException.class, () -> service.validateExecution(preview));
         }
@@ -199,5 +205,78 @@ class GitServiceTest {
         } while (System.nanoTime() < until);
         fail("Operação não terminou: " + result);
         return result;
+    }
+
+    @Test void continuationKeepsUnselectedAndPushRequiresExplicitExactHead() throws Exception {
+        var actor = new Models.Actor("owner", "owner", Groups.ADM);
+        var preview = plan("2026-10-24");
+        Path remote = workspace.resolve("origin.git");
+        runner.require(workspace,"init","--bare",remote.toString());
+        command("remote","add","origin",remote.toString());
+        command("push","origin","destino");
+        try(var jobs = new RunService(service,properties,executionStore)) {
+            var run = await(jobs,jobs.start(preview,List.of(first),false,actor).id());
+            var remaining = jobs.remaining(run.id(),actor);
+            assertEquals(List.of(second,equivalent),remaining.commits().stream().map(Models.Commit::hash).toList());
+            assertNotEquals(preview.id(),remaining.id());
+            assertEquals(preview.sourceHead(),remaining.sourceHead());
+            String head = command("rev-parse","HEAD");
+            assertEquals(head,remaining.targetHead());
+            assertEquals(base,runner.require(remote,"rev-parse","refs/heads/destino").output().strip());
+            assertEquals(head,jobs.pushPreview(run.id(),actor).head());
+            assertThrows(AppException.class,()->jobs.push(run.id(),base,actor));
+            assertThrows(AppException.class,()->jobs.remaining(run.id(),new Models.Actor("stranger","other",Groups.USER)));
+            jobs.push(run.id(),head,actor);
+            assertEquals(head,runner.require(remote,"rev-parse","refs/heads/destino").output().strip());
+            assertTrue(jobs.log(run.id(),actor).contains("PUSH CONCLUÍDO"));
+            String remoteCommit=runner.require(remote,"-c","user.name=Fixture","-c","user.email=fixture@example.invalid",
+                    "commit-tree",head+"^{tree}","-p",head,"-m","remote extra").output().strip();
+            runner.require(remote,"update-ref","refs/heads/destino",remoteCommit);
+            assertThrows(AppException.class,()->jobs.push(run.id(),head,actor));
+            assertEquals(remoteCommit,runner.require(remote,"rev-parse","refs/heads/destino").output().strip());
+            assertEquals(head,command("rev-parse","HEAD"));
+            assertTrue(jobs.log(run.id(),actor).contains("PUSH FALHOU"));
+            Files.writeString(repository.resolve("untracked.txt"),"local\n");
+            assertEquals(head,jobs.pushPreview(run.id(),actor).head());
+            assertEquals("local\n",Files.readString(repository.resolve("untracked.txt")));
+            assertNotEquals(0,runner.run(remote,"cat-file","-e",remoteCommit+":untracked.txt").code());
+            Files.delete(repository.resolve("untracked.txt"));
+            Files.writeString(repository.resolve("base.txt"),"dirty\n");
+            assertThrows(AppException.class,()->jobs.pushPreview(run.id(),actor));
+            assertEquals(remaining.commits(),jobs.remaining(run.id(),actor).commits());
+        }
+    }
+
+    @Test void restoredContinuationAndPushRecheckCurrentRightsRevisionAndOwnership() throws Exception {
+        var jdbc=new org.springframework.jdbc.core.JdbcTemplate(database.source);
+        String ownerId=java.util.UUID.randomUUID().toString(), readerId=java.util.UUID.randomUUID().toString();
+        for(String id:List.of(ownerId,readerId)) jdbc.update("INSERT INTO bc_user(id,username,name,password_hash,user_group,enabled,revision,created_at,updated_at) VALUES(CAST(? AS uuid),?,?,?,'USER',true,1,current_timestamp,current_timestamp)",id,id,id,"$2a$04$"+"a".repeat(53));
+        var actor=new Models.Actor(ownerId,ownerId,Groups.USER);
+        var reader=new Models.Actor(readerId,readerId,Groups.USER);
+        var admin=new Models.Actor("admin","admin",Groups.ADM);
+        var environments=new EnvironmentStore(database.source,service);
+        var env=environments.save(null,new EnvironmentStore.Change("Fixture",repository.toString(),List.of("*"),List.copyOf(Permissions.ALL),List.of(ownerId,readerId),true),admin);
+        var preview=plan("2026-10-24").inEnvironment(env.id(),env.revision());
+        command("cherry-pick",first);
+        String head=command("rev-parse","HEAD"), id=java.util.UUID.randomUUID().toString();
+        String now=java.time.Instant.now().toString();
+        var saved=new Models.RunView(id,"COMPLETED",false,preview.repositoryPath(),preview.sourceBranch(),preview.targetBranch(),now,now,
+                workspace.resolve("logs").resolve(id+".log").toString(),List.of(new Models.CommitProgress(first,"first","APPLIED",head)),List.of(),actor,preview.id(),env.id(),env.name());
+        executionStore.save(new RunService.StoredExecution(preview,saved));
+        Path remote=workspace.resolve("origin.git"); runner.require(workspace,"init","--bare",remote.toString()); command("remote","add","origin",remote.toString());
+        try(var jobs=new RunService(service,properties,executionStore,environments)) {
+            var remaining=jobs.remaining(id,actor);
+            assertEquals(List.of(second,equivalent),remaining.commits().stream().map(Models.Commit::hash).toList());
+            assertEquals(head,jobs.pushPreview(id,actor).head());
+            assertEquals(404,assertThrows(AppException.class,()->jobs.pushPreview(id,reader)).status());
+            assertEquals(404,assertThrows(AppException.class,()->jobs.remaining(id,reader)).status());
+            assertThrows(AppException.class,()->jobs.start(remaining,List.of(second),false,actor));
+            jdbc.update("DELETE FROM bc_environment_permission WHERE environment_id=CAST(? AS uuid) AND permission='APPLY'",env.id());
+            assertEquals(403,assertThrows(AppException.class,()->jobs.push(id,head,actor)).status());
+            jdbc.update("INSERT INTO bc_environment_permission VALUES(CAST(? AS uuid),'APPLY')",env.id());
+            jdbc.update("UPDATE bc_environment SET revision=revision+1 WHERE id=CAST(? AS uuid)",env.id());
+            assertEquals(409,assertThrows(AppException.class,()->jobs.remaining(id,actor)).status());
+            assertEquals(409,assertThrows(AppException.class,()->jobs.pushPreview(id,actor)).status());
+        }
     }
 }
